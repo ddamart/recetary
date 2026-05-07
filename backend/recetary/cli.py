@@ -173,13 +173,30 @@ def cmd_add(args: argparse.Namespace) -> int:
         except VideoExtractionError as e:
             print(f"Video extraction failed: {e}", file=sys.stderr)
             return 2
-        draft = extractor.extract(
-            canonical_ingredients=_canonical_ingredient_names(),
-            text=content.text,
-            image_bytes=content.thumbnail_bytes,
-            image_media_type=content.thumbnail_media_type,
-            source_hint=content.source_url,
-        )
+
+        # Twitter videos require Gemini backend
+        if content.platform == "twitter":
+            if not hasattr(extractor, "extract_video_bytes"):
+                print(
+                    "Twitter video extraction requires the Gemini backend. "
+                    "Set EXTRACTOR_BACKEND=gemini to enable it.",
+                    file=sys.stderr,
+                )
+                return 2
+            draft = extractor.extract_video_bytes(
+                video_bytes=content.video_bytes,
+                video_mime_type=content.video_mime_type,
+                supplementary_text=content.text,
+                canonical_ingredients=_canonical_ingredient_names(),
+            )
+        else:
+            draft = extractor.extract(
+                canonical_ingredients=_canonical_ingredient_names(),
+                text=content.text,
+                image_bytes=content.thumbnail_bytes,
+                image_media_type=content.thumbnail_media_type,
+                source_hint=content.source_url,
+            )
         payload = draft_to_create(
             draft,
             source_type="video",

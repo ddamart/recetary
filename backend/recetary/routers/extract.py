@@ -86,7 +86,28 @@ async def extract_recipe(
         if source_type == "video":
             if not url:
                 raise HTTPException(400, "video source requires the `url` field")
+
+            # Fail fast: Twitter videos require Gemini (Claude cannot process raw video)
+            if video_io._extract_twitter_status_id(url) and not hasattr(extractor, "extract_video_bytes"):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "Twitter video extraction requires the Gemini backend. "
+                        "The current backend (Claude) does not support video processing."
+                    ),
+                )
+
             content = await asyncio.to_thread(video_io.fetch_video_content, url)
+
+            # Twitter videos: send raw bytes to Gemini
+            if content.platform == "twitter":
+                return await asyncio.to_thread(
+                    extractor.extract_video_bytes,
+                    video_bytes=content.video_bytes,
+                    video_mime_type=content.video_mime_type,
+                    supplementary_text=content.text,
+                    canonical_ingredients=canonical,
+                )
 
             # Gemini can process YouTube videos natively for richer extraction
             if hasattr(extractor, "extract_video_url") and content.platform == "youtube":

@@ -1,15 +1,21 @@
-"""Fetch recipe content from video URLs (YouTube, Instagram).
+"""Fetch recipe content from video URLs (YouTube, Instagram, Twitter/X).
 
 Extracts transcripts/captions and thumbnails so the LLM extractor
 can process them as text + image — no video download or ffmpeg needed.
+Twitter videos are downloaded via yt-dlp for Gemini video processing.
 """
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 import httpx
+
+# Maximum video size we'll send to Gemini (20 MB)
+_MAX_VIDEO_BYTES = 20 * 1024 * 1024
 
 
 class VideoExtractionError(Exception):
@@ -23,6 +29,8 @@ class VideoContent:
     thumbnail_media_type: str = "image/jpeg"
     source_url: str = ""
     platform: str = ""
+    video_bytes: Optional[bytes] = None
+    video_mime_type: str = "video/mp4"
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +45,10 @@ _IG_PATTERNS = [
     re.compile(r"instagram\.com/(?:reel|reels|p)/([\w-]+)"),
 ]
 
+_TW_PATTERNS = [
+    re.compile(r"(?:twitter\.com|x\.com)/\w+/status/(\d+)"),
+]
+
 
 def _extract_youtube_id(url: str) -> Optional[str]:
     for pat in _YT_PATTERNS:
@@ -48,6 +60,14 @@ def _extract_youtube_id(url: str) -> Optional[str]:
 
 def _extract_instagram_shortcode(url: str) -> Optional[str]:
     for pat in _IG_PATTERNS:
+        m = pat.search(url)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _extract_twitter_status_id(url: str) -> Optional[str]:
+    for pat in _TW_PATTERNS:
         m = pat.search(url)
         if m:
             return m.group(1)
@@ -173,11 +193,88 @@ def _fetch_instagram(shortcode: str) -> VideoContent:
 
 
 # ---------------------------------------------------------------------------
+# Twitter / X
+# ---------------------------------------------------------------------------
+
+def _fetch_twitter(status_id: str) -> VideoContent:
+    import yt_dlp
+
+    tweet_url = f"https://x.com/i/status/{status_id}"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outtmpl = str(Path(tmpdir) / "%(id)s.%(ext)s")
+        ydl_opts = {
+            "format": "best[ext=mp4]/best",
+            "outtmpl": outtmpl,
+            "noplaylist": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(tweet_url, download=True)
+        except Exception as e:
+            raise VideoExtractionError(
+                f"Could not download Twitter video {status_id} "
+                f"(may be private or not contain a video): {e}"
+            ) from e
+
+        if info is None:
+            raise VideoExtractionError(
+                f"yt-dlp returned no info for Twitter status {status_id}"
+            )
+
+        # Find the downloaded file
+        downloaded = list(Path(tmpdir).glob("*.*"))
+        if not downloaded:
+            raise VideoExtractionError(
+                f"yt-dlp did not produce a file for Twitter status {status_id}"
+            )
+        video_path = downloaded[0]
+        video_bytes = video_path.read_bytes()
+
+        if len(video_bytes) > _MAX_VIDEO_BYTES:
+            size_mb = len(video_bytes) / (1024 * 1024)
+            raise VideoExtractionError(
+                f"Twitter video is too large ({size_mb:.1f} MB). "
+                f"Maximum supported size is {_MAX_VIDEO_BYTES // (1024 * 1024)} MB."
+            )
+
+        # Detect mime type from extension before tmpdir is cleaned up
+        ext = video_path.suffix.lstrip(".")
+        mime_type = f"video/{ext}" if ext else "video/mp4"
+
+    description = info.get("description") or ""
+    source_url = info.get("webpage_url") or tweet_url
+
+    # Fetch thumbnail
+    thumbnail_bytes = None
+    thumb_url = info.get("thumbnail")
+    if thumb_url:
+        try:
+            resp = httpx.get(thumb_url, timeout=10, follow_redirects=True)
+            if resp.status_code == 200 and len(resp.content) > 1000:
+                thumbnail_bytes = resp.content
+        except httpx.HTTPError:
+            pass
+
+    return VideoContent(
+        text=description,
+        thumbnail_bytes=thumbnail_bytes,
+        source_url=source_url,
+        platform="twitter",
+        video_bytes=video_bytes,
+        video_mime_type=mime_type,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 def fetch_video_content(url: str) -> VideoContent:
-    """Fetch recipe content from a YouTube or Instagram video URL."""
+    """Fetch recipe content from a YouTube, Instagram, or Twitter/X video URL."""
     yt_id = _extract_youtube_id(url)
     if yt_id:
         return _fetch_youtube(yt_id)
@@ -186,6 +283,10 @@ def fetch_video_content(url: str) -> VideoContent:
     if ig_code:
         return _fetch_instagram(ig_code)
 
+    tw_id = _extract_twitter_status_id(url)
+    if tw_id:
+        return _fetch_twitter(tw_id)
+
     raise VideoExtractionError(
-        f"Unsupported video URL: {url}. Supported platforms: YouTube, Instagram"
+        f"Unsupported video URL: {url}. Supported platforms: YouTube, Instagram, Twitter/X"
     )

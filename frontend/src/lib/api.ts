@@ -76,6 +76,7 @@ export const api = {
   },
   extractDraft: async (form: FormData): Promise<RecipeDraft> =>
     request<RecipeDraft>("/recipes/extract", { method: "POST", body: form }),
+  getInfo: () => request<{ extractor_backend: string }>("/info"),
   createRecipe: (payload: unknown) =>
     request<Recipe>("/recipes", {
       method: "POST",

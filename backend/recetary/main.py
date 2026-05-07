@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -35,3 +37,9 @@ app.mount("/static/images", StaticFiles(directory=str(_images_dir)), name="image
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/info")
+def info() -> dict[str, str]:
+    backend = os.environ.get("EXTRACTOR_BACKEND", "claude").lower()
+    return {"extractor_backend": backend}

@@ -162,3 +162,50 @@ class GeminiExtractor:
         )
 
         return self._parse_response(response)
+
+    def extract_video_bytes(
+        self,
+        *,
+        video_bytes: bytes,
+        video_mime_type: str = "video/mp4",
+        supplementary_text: Optional[str] = None,
+        canonical_ingredients: Iterable[str] = (),
+        max_tokens: int = 8192,
+    ) -> RecipeDraft:
+        """Extract a recipe from raw video bytes (e.g. Twitter/X videos).
+
+        Sends the video inline via Part.from_bytes() for Gemini to process
+        the visual and audio content directly.
+        """
+        preamble = build_canonical_preamble(canonical_ingredients)
+        parts: list[types.Part] = [types.Part.from_text(text=preamble)]
+
+        parts.append(types.Part.from_bytes(data=video_bytes, mime_type=video_mime_type))
+
+        if supplementary_text and supplementary_text.strip():
+            parts.append(
+                types.Part.from_text(
+                    text=f"Additional context (tweet/post text):\n\n{supplementary_text.strip()}"
+                )
+            )
+
+        parts.append(
+            types.Part.from_text(
+                text="Extract the recipe from the video above into the structured schema."
+            )
+        )
+
+        schema = RecipeDraft.model_json_schema()
+
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=[types.Content(role="user", parts=parts)],
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTIONS,
+                max_output_tokens=max_tokens,
+                response_mime_type="application/json",
+                response_schema=schema,
+            ),
+        )
+
+        return self._parse_response(response)

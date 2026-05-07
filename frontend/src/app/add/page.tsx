@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { RecipeForm } from "@/components/RecipeForm";
 import type { RecipeDraft } from "@/lib/types";
@@ -13,8 +13,12 @@ const SOURCE_OPTIONS: { kind: SourceKind; label: string; icon: string; help: str
   { kind: "image", label: "Imagen", icon: "🖼️", help: "Foto de una receta (PNG/JPG)" },
   { kind: "text", label: "Texto", icon: "✍️", help: "Pega o escribe la receta" },
   { kind: "url", label: "URL", icon: "🔗", help: "Enlace a artículo web" },
-  { kind: "video", label: "Vídeo", icon: "🎬", help: "YouTube o Instagram Reel" },
+  { kind: "video", label: "Vídeo", icon: "🎬", help: "YouTube, Instagram o Twitter/X" },
 ];
+
+function isTwitterUrl(url: string): boolean {
+  return /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url);
+}
 
 export default function AddPage() {
   const router = useRouter();
@@ -25,6 +29,13 @@ export default function AddPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
+  const [backend, setBackend] = useState<string>("gemini");
+
+  useEffect(() => {
+    api.getInfo().then((info) => setBackend(info.extractor_backend)).catch(() => {});
+  }, []);
+
+  const twitterBlocked = source === "video" && isTwitterUrl(url) && backend !== "gemini";
 
   async function extract() {
     setError(null);
@@ -165,12 +176,18 @@ export default function AddPage() {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://youtube.com/watch?v=... o https://instagram.com/reel/..."
+              placeholder="https://youtube.com/watch?v=... · instagram.com/reel/... · x.com/.../status/..."
               className="border border-border rounded-md p-2 text-sm focus:border-accent outline-none"
             />
             <span className="text-xs text-muted">
-              YouTube (subtítulos) e Instagram (texto del post)
+              YouTube (subtítulos), Instagram (texto del post) y Twitter/X (vídeo)
             </span>
+            {twitterBlocked && (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
+                Los vídeos de Twitter/X requieren el backend Gemini.
+                El backend actual (Claude) no admite procesamiento de vídeo directo.
+              </p>
+            )}
           </label>
         )}
       </div>
@@ -192,7 +209,7 @@ export default function AddPage() {
         <button
           type="button"
           onClick={extract}
-          disabled={busy}
+          disabled={busy || twitterBlocked}
           className="px-5 py-2 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-60"
         >
           {busy ? "Extrayendo..." : "Extraer →"}
