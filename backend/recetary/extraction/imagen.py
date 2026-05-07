@@ -15,11 +15,12 @@ MODEL = "imagen-4.0-fast-generate-001"
 MAX_RETRIES = 3
 
 PROMPT_TEMPLATE = (
-    "Close-up food photography of {dish}, beautifully plated on a rustic ceramic dish. "
-    "Painted in a soft anime watercolor style with warm golden lighting and vibrant appetizing colors. "
-    "The focus is entirely on the food — no people, no characters, no animals, no scenery. "
-    "Detailed textures, steam rising, cozy kitchen background blurred out. "
-    "No text or lettering."
+    "Fotografía gastronómica en primer plano de {dish}, "
+    "presentado en un plato de cerámica rústica. "
+    "Pintado en estilo acuarela anime suave con iluminación cálida dorada y colores vibrantes y apetitosos. "
+    "El foco está completamente en la comida — sin personas, sin personajes, sin animales, sin paisajes. "
+    "Texturas detalladas, vapor ascendiendo, fondo de cocina acogedora desenfocado. "
+    "Sin texto ni letras."
 )
 
 
