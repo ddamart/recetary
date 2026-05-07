@@ -77,7 +77,7 @@ class GeminiExtractor:
         image_bytes: Optional[bytes] = None,
         image_media_type: Optional[str] = None,
         source_hint: Optional[str] = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
     ) -> RecipeDraft:
         if not any((text, pdf_bytes, image_bytes)):
             raise ValueError("extract() requires at least one of text, pdf_bytes, image_bytes")

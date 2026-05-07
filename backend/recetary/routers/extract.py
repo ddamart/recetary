@@ -1,6 +1,7 @@
 """Endpoints that turn raw inputs into a `RecipeDraft` via an LLM backend."""
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
@@ -43,7 +44,8 @@ async def extract_recipe(
             if file is None:
                 raise HTTPException(400, "pdf source requires a file upload")
             pdf_bytes = await file.read()
-            return extractor.extract(
+            return await asyncio.to_thread(
+                extractor.extract,
                 canonical_ingredients=canonical,
                 pdf_bytes=pdf_bytes,
                 source_hint=file.filename,
@@ -52,7 +54,8 @@ async def extract_recipe(
             if file is None:
                 raise HTTPException(400, "image source requires a file upload")
             image_bytes = await file.read()
-            return extractor.extract(
+            return await asyncio.to_thread(
+                extractor.extract,
                 canonical_ingredients=canonical,
                 image_bytes=image_bytes,
                 image_media_type=file.content_type or "image/jpeg",
@@ -61,14 +64,19 @@ async def extract_recipe(
         if source_type == "text":
             if not text or not text.strip():
                 raise HTTPException(400, "text source requires the `text` field")
-            return extractor.extract(canonical_ingredients=canonical, text=text)
+            return await asyncio.to_thread(
+                extractor.extract,
+                canonical_ingredients=canonical,
+                text=text,
+            )
         if source_type == "url":
             if not url:
                 raise HTTPException(400, "url source requires the `url` field")
             cleaned = url_io.fetch_clean_text(url)
             if not cleaned:
                 raise HTTPException(422, f"Could not extract readable content from {url}")
-            return extractor.extract(
+            return await asyncio.to_thread(
+                extractor.extract,
                 canonical_ingredients=canonical,
                 text=cleaned,
                 source_hint=url,
