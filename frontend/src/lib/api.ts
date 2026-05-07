@@ -65,6 +65,7 @@ export const api = {
     if (params.offset) qs.set("offset", String(params.offset));
     return request<RecipeMatch[]>(`/search?${qs.toString()}`);
   },
+  countRecipes: () => request<number>("/recipes/count"),
   listTags: () => request<string[]>("/recipes/tags"),
   listIngredients: (params?: { q?: string; limit?: number }) => {
     const qs = new URLSearchParams();

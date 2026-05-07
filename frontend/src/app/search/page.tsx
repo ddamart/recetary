@@ -4,7 +4,8 @@ import { RecipeCard } from "@/components/RecipeCard";
 import { SearchBox } from "@/components/SearchBox";
 import { formatTime, parseIngredients } from "@/lib/format";
 
-const PAGE_SIZE = 24;
+const DEFAULT_PAGE_SIZE = 24;
+const PAGE_SIZE_OPTIONS = [12, 24, 48, 96];
 
 export default async function SearchPage(
   props: PageProps<"/search">,
@@ -15,22 +16,41 @@ export default async function SearchPage(
     typeof sp.ingredients === "string" ? sp.ingredients : undefined;
   const ingredients = ingredientsParam ? parseIngredients(ingredientsParam) : [];
   const sort = typeof sp.sort === "string" ? sp.sort : undefined;
-  const offset = typeof sp.offset === "string" ? Math.max(0, Number(sp.offset) || 0) : 0;
+  const pageSize =
+    typeof sp.size === "string" && PAGE_SIZE_OPTIONS.includes(Number(sp.size))
+      ? Number(sp.size)
+      : DEFAULT_PAGE_SIZE;
+  const page = typeof sp.page === "string" ? Math.max(1, Number(sp.page) || 1) : 1;
+  const offset = (page - 1) * pageSize;
 
   const isAlpha = sort === "alpha";
 
-  const results = await api
-    .search({ q, ingredients, sort, limit: PAGE_SIZE, offset })
-    .catch(() => []);
+  const [results, totalCount] = await Promise.all([
+    api.search({ q, ingredients, sort, limit: pageSize, offset }).catch(() => []),
+    isAlpha ? api.countRecipes().catch(() => 0) : Promise.resolve(0),
+  ]);
 
-  // Build base query string (without offset) for pagination links
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+  // Build base query string (without page) for pagination links
   const baseParams = new URLSearchParams();
   if (q) baseParams.set("q", q);
   if (ingredientsParam) baseParams.set("ingredients", ingredientsParam);
   if (sort) baseParams.set("sort", sort);
+  if (pageSize !== DEFAULT_PAGE_SIZE) baseParams.set("size", String(pageSize));
 
-  const prevOffset = offset - PAGE_SIZE;
-  const nextOffset = offset + PAGE_SIZE;
+  function pageUrl(p: number) {
+    const params = new URLSearchParams(baseParams);
+    if (p > 1) params.set("page", String(p));
+    return `/search?${params.toString()}`;
+  }
+
+  function sizeUrl(s: number) {
+    const params = new URLSearchParams(baseParams);
+    params.set("size", String(s));
+    params.delete("page");
+    return `/search?${params.toString()}`;
+  }
 
   const noFilters = !q && ingredients.length === 0;
 
@@ -45,9 +65,9 @@ export default async function SearchPage(
           {isAlpha && noFilters ? "Todas las recetas" : (
             <>{results.length} {results.length === 1 ? "receta" : "recetas"}</>
           )}
-          {offset > 0 && (
+          {isAlpha && totalCount > 0 && (
             <span className="text-sm font-normal text-muted ml-2">
-              (desde {offset + 1})
+              ({totalCount} total)
             </span>
           )}
         </h2>
@@ -56,7 +76,7 @@ export default async function SearchPage(
         </Link>
       </div>
 
-      {results.length === 0 && offset === 0 ? (
+      {results.length === 0 && page === 1 ? (
         <p className="text-sm text-muted">
           {noFilters
             ? <>Aún no hay recetas. <a href="/add" className="text-accent underline">Añade la primera</a>.</>
@@ -108,22 +128,61 @@ export default async function SearchPage(
             ))}
           </ul>
 
-          <div className="flex justify-center gap-3 mt-2">
-            {prevOffset >= 0 && (
-              <Link
-                href={`/search?${(() => { const p = new URLSearchParams(baseParams); if (prevOffset > 0) p.set("offset", String(prevOffset)); return p.toString(); })()}`}
-                className="px-5 py-2 rounded-lg border border-border text-sm font-medium hover:bg-accent-soft hover:border-accent transition"
-              >
-                ← Anterior
-              </Link>
-            )}
-            {results.length >= PAGE_SIZE && (
-              <Link
-                href={`/search?${(() => { const p = new URLSearchParams(baseParams); p.set("offset", String(nextOffset)); return p.toString(); })()}`}
-                className="px-5 py-2 rounded-lg border border-border text-sm font-medium hover:bg-accent-soft hover:border-accent transition"
-              >
-                Siguiente →
-              </Link>
+          {/* Page size selector + numbered pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <span>Mostrar</span>
+              {PAGE_SIZE_OPTIONS.map((s) => (
+                <Link
+                  key={s}
+                  href={sizeUrl(s)}
+                  className={`px-2 py-1 rounded-md border text-xs transition ${
+                    s === pageSize
+                      ? "bg-accent text-white border-accent"
+                      : "border-border hover:border-accent hover:text-accent"
+                  }`}
+                >
+                  {s}
+                </Link>
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                {page > 1 && (
+                  <Link
+                    href={pageUrl(page - 1)}
+                    className="px-2 py-1 rounded-md border border-border text-xs hover:bg-accent-soft hover:border-accent transition"
+                  >
+                    ←
+                  </Link>
+                )}
+                {pageNumbers(page, totalPages).map((p, i) =>
+                  p === null ? (
+                    <span key={`gap-${i}`} className="px-1 text-xs text-muted">...</span>
+                  ) : (
+                    <Link
+                      key={p}
+                      href={pageUrl(p)}
+                      className={`px-2.5 py-1 rounded-md border text-xs transition ${
+                        p === page
+                          ? "bg-accent text-white border-accent"
+                          : "border-border hover:bg-accent-soft hover:border-accent"
+                      }`}
+                    >
+                      {p}
+                    </Link>
+                  ),
+                )}
+                {page < totalPages && (
+                  <Link
+                    href={pageUrl(page + 1)}
+                    className="px-2 py-1 rounded-md border border-border text-xs hover:bg-accent-soft hover:border-accent transition"
+                  >
+                    →
+                  </Link>
+                )}
+              </div>
             )}
           </div>
         </>
@@ -136,17 +195,17 @@ export default async function SearchPage(
           </div>
 
           <div className="flex justify-center gap-3 mt-2">
-            {prevOffset >= 0 && (
+            {page > 1 && (
               <Link
-                href={`/search?${(() => { const p = new URLSearchParams(baseParams); if (prevOffset > 0) p.set("offset", String(prevOffset)); return p.toString(); })()}`}
+                href={pageUrl(page - 1)}
                 className="px-5 py-2 rounded-lg border border-border text-sm font-medium hover:bg-accent-soft hover:border-accent transition"
               >
                 ← Anterior
               </Link>
             )}
-            {results.length >= PAGE_SIZE && (
+            {results.length >= pageSize && (
               <Link
-                href={`/search?${(() => { const p = new URLSearchParams(baseParams); p.set("offset", String(nextOffset)); return p.toString(); })()}`}
+                href={pageUrl(page + 1)}
                 className="px-5 py-2 rounded-lg border border-border text-sm font-medium hover:bg-accent-soft hover:border-accent transition"
               >
                 Siguiente →
@@ -157,4 +216,26 @@ export default async function SearchPage(
       )}
     </div>
   );
+}
+
+/** Generate page numbers with ellipsis gaps. Always shows first, last, and ±1 around current. */
+function pageNumbers(current: number, total: number): (number | null)[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages = new Set<number>();
+  pages.add(1);
+  pages.add(total);
+  for (let i = Math.max(1, current - 1); i <= Math.min(total, current + 1); i++) {
+    pages.add(i);
+  }
+  const sorted = [...pages].sort((a, b) => a - b);
+  const result: (number | null)[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) {
+      result.push(null);
+    }
+    result.push(sorted[i]);
+  }
+  return result;
 }

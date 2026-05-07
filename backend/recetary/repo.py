@@ -322,6 +322,12 @@ def update_recipe(
     return get_recipe(conn, recipe_id)
 
 
+def count_recipes(conn: sqlite3.Connection) -> int:
+    """Return total number of recipes."""
+    row = conn.execute("SELECT COUNT(*) AS cnt FROM recipes").fetchone()
+    return int(row["cnt"])
+
+
 def list_tags(conn: sqlite3.Connection) -> list[str]:
     """Return all distinct tags, sorted alphabetically."""
     rows = conn.execute(
