@@ -11,6 +11,12 @@ from ..models import Recipe, RecipeCreate, RecipeSummary
 router = APIRouter(prefix="/recipes", tags=["recipes"])
 
 
+@router.get("/tags", response_model=list[str])
+def list_tags() -> list[str]:
+    with db.get_conn() as conn:
+        return repo.list_tags(conn)
+
+
 @router.get("", response_model=list[RecipeSummary])
 def list_recipes(
     limit: int = Query(24, ge=1, le=100),

@@ -13,6 +13,7 @@ Random recipe shares the ingredient/tag filter and adds `ORDER BY RANDOM()`.
 from __future__ import annotations
 
 import sqlite3
+import unicodedata
 from typing import Iterable, Optional
 
 from rapidfuzz import fuzz, process
@@ -124,40 +125,74 @@ def _fts_query(q: str) -> str:
     return " ".join(f"{t}*" for t in tokens)
 
 
-def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
-    """SQL LIKE substring match on title and subtitle.
+def _strip_diacritics(s: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn"
+    )
 
+
+def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
+    """SQL LIKE substring match on title, subtitle, and description.
+
+    Uses strip_diacritics() so 'asiatica' matches 'asiática'.
+    Also tries gender-stem variants ('asiatica' → 'asiatic%') so that
+    masculine/feminine/plural forms all match.
     Slower than FTS5 (table scan) but catches infix matches like
     "soba" inside "Yakisoba".  Instant for hundreds of recipes.
     """
-    pattern = f"%{q.strip().lower()}%"
+    clean = _strip_diacritics(q.strip().lower())
+    patterns = [f"%{clean}%"]
+    # Add gender-stem variant: strip trailing a/o/as/os to get a common root
+    for suffix in ("as", "os", "a", "o"):
+        if clean.endswith(suffix) and len(clean) > len(suffix) + 2:
+            stem = clean[: -len(suffix)]
+            patterns.append(f"%{stem}%")
+            break
+    # Build OR conditions for all patterns
+    conditions = " OR ".join(
+        "(LOWER(strip_diacritics(title)) LIKE ? "
+        "OR LOWER(strip_diacritics(COALESCE(subtitle, ''))) LIKE ? "
+        "OR LOWER(strip_diacritics(COALESCE(description, ''))) LIKE ?)"
+        for _ in patterns
+    )
+    params = tuple(p for pat in patterns for p in (pat, pat, pat))
     rows = conn.execute(
-        "SELECT id FROM recipes "
-        "WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(subtitle, '')) LIKE ? "
-        "ORDER BY created_at DESC",
-        (pattern, pattern),
+        f"SELECT id FROM recipes WHERE {conditions} ORDER BY created_at DESC",
+        params,
     ).fetchall()
     return [int(r["id"]) for r in rows]
 
 
 def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
-    """Tier 1 FTS5 prefix → Tier 2 LIKE substring → Tier 3 fuzzy fallback."""
-    # Tier 1: FTS5 prefix (fast, BM25-ranked)
+    """Tier 1 FTS5 prefix + LIKE union → Tier 2 fuzzy fallback."""
+    result_ids: list[int] = []
+    seen: set[int] = set()
+
+    # Tier 1a: FTS5 prefix (fast, BM25-ranked) — best relevance ordering
     fts = _fts_query(q)
     if fts:
         rows = conn.execute(
             "SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ? ORDER BY bm25(recipes_fts)",
             (fts,),
         ).fetchall()
-        if rows:
-            return [int(r["rowid"]) for r in rows]
+        for r in rows:
+            rid = int(r["rowid"])
+            if rid not in seen:
+                seen.add(rid)
+                result_ids.append(rid)
 
-    # Tier 2: LIKE substring (catches infix like "soba" in "Yakisoba")
+    # Tier 1b: LIKE substring — catches infix and gender/plural variants
     like_ids = _like_match_ids(conn, q)
-    if like_ids:
-        return like_ids
+    for rid in like_ids:
+        if rid not in seen:
+            seen.add(rid)
+            result_ids.append(rid)
 
-    # Tier 3: rapidfuzz fallback for typo correction
+    if result_ids:
+        return result_ids
+
+    # Tier 2: rapidfuzz fallback for typo correction
     candidates = conn.execute(
         "SELECT id, title || ' ' || COALESCE(subtitle, '') AS hay FROM recipes"
     ).fetchall()
@@ -179,10 +214,11 @@ def search_recipes(
     q: Optional[str] = None,
     ingredients: Optional[list[str]] = None,
     tag: Optional[str] = None,
+    sort: str = "recent",
     limit: int = 24,
     offset: int = 0,
 ) -> list[RecipeMatch]:
-    """Return matching recipes, ordered by relevance / recency."""
+    """Return matching recipes, ordered by relevance / recency / title."""
     ingredients = [i for i in (ingredients or []) if i and i.strip()]
 
     groups: list[set[int]] = []
@@ -191,12 +227,8 @@ def search_recipes(
         for token in ingredients:
             group = _resolve_token_to_group(conn, token)
             if not group:
-                # A user-supplied token matches no canonical ingredient → no
-                # recipes can satisfy the intersection.
                 return []
             groups.append({pair[0] for pair in group})
-            # Display the original user token, not the canonical names — keeps
-            # the "matched" list short and human-readable.
             matched_names.append(token.strip().lower())
 
     candidate_ids: Optional[set[int]] = None
@@ -214,25 +246,34 @@ def search_recipes(
         if not candidate_ids:
             return []
 
+    order_col = "title COLLATE NOCASE" if sort == "alpha" else "created_at DESC"
+
     if q:
         ordered_title_ids = _title_match_ids(conn, q)
         if candidate_ids is not None:
             ordered_title_ids = [rid for rid in ordered_title_ids if rid in candidate_ids]
         if not ordered_title_ids:
             return []
-        ordered_ids = ordered_title_ids
+        if sort == "alpha":
+            # Re-sort FTS results alphabetically
+            placeholders = ",".join("?" * len(ordered_title_ids))
+            rows = conn.execute(
+                f"SELECT id FROM recipes WHERE id IN ({placeholders}) ORDER BY {order_col}",
+                tuple(ordered_title_ids),
+            ).fetchall()
+            ordered_ids = [int(r["id"]) for r in rows]
+        else:
+            ordered_ids = ordered_title_ids
     elif candidate_ids is not None:
-        # Order intersection results by recency
+        placeholders = ",".join("?" * len(candidate_ids))
         rows = conn.execute(
-            "SELECT id FROM recipes WHERE id IN ({}) ORDER BY created_at DESC".format(
-                ",".join("?" * len(candidate_ids))
-            ),
+            f"SELECT id FROM recipes WHERE id IN ({placeholders}) ORDER BY {order_col}",
             tuple(candidate_ids),
         ).fetchall()
         ordered_ids = [int(r["id"]) for r in rows]
     else:
         rows = conn.execute(
-            "SELECT id FROM recipes ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            f"SELECT id FROM recipes ORDER BY {order_col} LIMIT ? OFFSET ?",
             (limit, offset),
         ).fetchall()
         ordered_ids = [int(r["id"]) for r in rows]
@@ -297,7 +338,7 @@ def _hydrate_match(
         subtitle=row["subtitle"],
         image_path=row["image_path"],
         total_time_min=row["total_time_min"],
-        servings=int(row["servings"]),
+        servings=int(row["servings"]) if row["servings"] is not None else None,
         ingredient_count=int(row["ic"]),
         tags=tags,
         matched_ingredients=matched_names,

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS recipes (
     title           TEXT NOT NULL,
     subtitle        TEXT,
     description     TEXT,
-    servings        INTEGER NOT NULL DEFAULT 2,
+    servings        INTEGER DEFAULT 2,
     total_time_min  INTEGER,
     cook_time_min   INTEGER,
     difficulty      TEXT CHECK (difficulty IN ('easy','medium','hard')),

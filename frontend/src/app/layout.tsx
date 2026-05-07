@@ -27,6 +27,12 @@ export default function RootLayout({
             </Link>
             <nav className="flex items-center gap-2 text-sm">
               <Link
+                href="/search?sort=alpha"
+                className="px-3 py-1.5 rounded-md border border-border hover:bg-accent-soft hover:border-accent transition"
+              >
+                Todas
+              </Link>
+              <Link
                 href="/add"
                 className="px-3 py-1.5 rounded-md border border-border hover:bg-accent-soft hover:border-accent transition"
               >

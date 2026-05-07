@@ -62,7 +62,7 @@ class RecipeCreate(BaseModel):
     title: str = Field(min_length=1)
     subtitle: Optional[str] = None
     description: Optional[str] = None
-    servings: int = Field(default=2, ge=1, le=20)
+    servings: Optional[int] = Field(default=2, ge=1, le=20)
     total_time_min: Optional[int] = Field(default=None, ge=0)
     cook_time_min: Optional[int] = Field(default=None, ge=0)
     difficulty: Optional[Difficulty] = None
@@ -83,7 +83,7 @@ class RecipeSummary(BaseModel):
     subtitle: Optional[str]
     image_path: Optional[str]
     total_time_min: Optional[int]
-    servings: int
+    servings: Optional[int]
     ingredient_count: int
     tags: list[str]
 
@@ -100,7 +100,7 @@ class Recipe(BaseModel):
     title: str
     subtitle: Optional[str]
     description: Optional[str]
-    servings: int
+    servings: Optional[int]
     total_time_min: Optional[int]
     cook_time_min: Optional[int]
     difficulty: Optional[Difficulty]

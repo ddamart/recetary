@@ -55,7 +55,7 @@ export interface Recipe {
   title: string;
   subtitle: string | null;
   description: string | null;
-  servings: number;
+  servings: number | null;
   total_time_min: number | null;
   cook_time_min: number | null;
   difficulty: Difficulty | null;
@@ -75,7 +75,7 @@ export interface RecipeSummary {
   subtitle: string | null;
   image_path: string | null;
   total_time_min: number | null;
-  servings: number;
+  servings: number | null;
   ingredient_count: number;
   tags: string[];
 }
@@ -103,7 +103,7 @@ export interface RecipeDraft {
   title: string;
   subtitle: string | null;
   description: string | null;
-  servings: number;
+  servings: number | null;
   total_time_min: number | null;
   cook_time_min: number | null;
   difficulty: Difficulty | null;

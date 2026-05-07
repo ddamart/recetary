@@ -172,7 +172,7 @@ def _hydrate_recipe(conn: sqlite3.Connection, row: sqlite3.Row) -> Recipe:
         title=row["title"],
         subtitle=row["subtitle"],
         description=row["description"],
-        servings=int(row["servings"]),
+        servings=int(row["servings"]) if row["servings"] is not None else None,
         total_time_min=row["total_time_min"],
         cook_time_min=row["cook_time_min"],
         difficulty=row["difficulty"],
@@ -320,6 +320,14 @@ def update_recipe(
             (recipe_id, tag),
         )
     return get_recipe(conn, recipe_id)
+
+
+def list_tags(conn: sqlite3.Connection) -> list[str]:
+    """Return all distinct tags, sorted alphabetically."""
+    rows = conn.execute(
+        "SELECT DISTINCT tag FROM tags ORDER BY tag"
+    ).fetchall()
+    return [r["tag"] for r in rows]
 
 
 def list_ingredients(

@@ -25,6 +25,7 @@ def search(
         None, description="Comma-separated ingredient list"
     ),
     tag: Optional[str] = Query(None),
+    sort: str = Query("recent", description="Sort order: 'recent' or 'alpha'"),
     limit: int = Query(24, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> list[RecipeMatch]:
@@ -34,6 +35,7 @@ def search(
             q=q,
             ingredients=_split_ingredients(ingredients),
             tag=tag,
+            sort=sort,
             limit=limit,
             offset=offset,
         )

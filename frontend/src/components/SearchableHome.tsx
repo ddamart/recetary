@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { RecipeCard } from "@/components/RecipeCard";
 import { SearchBox } from "@/components/SearchBox";
@@ -18,16 +18,22 @@ export function SearchableHome({ initialRecipes }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialRecipes.length >= 12);
   const [hasQuery, setHasQuery] = useState(false);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const reqId = useRef(0);
-  const lastQuery = useRef<{ q?: string; ingredients?: string[] }>({});
+  const lastQuery = useRef<{ q?: string; ingredients?: string[]; tag?: string }>({});
+
+  useEffect(() => {
+    api.listTags().then(setAvailableTags).catch(() => {});
+  }, []);
 
   const handleChange = useCallback(
-    async (q: string, ingredients: string[]) => {
-      const isEmpty = !q.trim() && ingredients.length === 0;
+    async (q: string, ingredients: string[], tag: string | undefined) => {
+      const isEmpty = !q.trim() && ingredients.length === 0 && !tag;
       setHasQuery(!isEmpty);
       lastQuery.current = {
         q: q.trim() || undefined,
         ingredients: ingredients.length ? ingredients : undefined,
+        tag,
       };
 
       if (isEmpty) {
@@ -96,7 +102,7 @@ export function SearchableHome({ initialRecipes }: Props) {
   return (
     <>
       <div className="w-full max-w-2xl">
-        <SearchBox size="lg" onChange={handleChange} />
+        <SearchBox size="lg" availableTags={availableTags} onChange={handleChange} />
       </div>
 
       <section className="w-full">

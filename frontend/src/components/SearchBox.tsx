@@ -6,32 +6,37 @@ import { useEffect, useRef, useState, useTransition, type KeyboardEvent } from "
 interface Props {
   initialQuery?: string;
   initialIngredients?: string[];
+  initialTag?: string;
+  availableTags?: string[];
   size?: "lg" | "md";
-  onChange?: (q: string, ingredients: string[]) => void;
+  onChange?: (q: string, ingredients: string[], tag: string | undefined) => void;
 }
 
 export function SearchBox({
   initialQuery = "",
   initialIngredients = [],
+  initialTag,
+  availableTags = [],
   size = "md",
   onChange,
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [ingredients, setIngredients] = useState<string[]>(initialIngredients);
+  const [tag, setTag] = useState<string | undefined>(initialTag);
   const [draft, setDraft] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  // Debounced onChange — fires 400ms after the last query/ingredients change.
+  // Debounced onChange — fires 400ms after the last query/ingredients/tag change.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   useEffect(() => {
     if (!onChangeRef.current) return;
     const timer = setTimeout(() => {
-      onChangeRef.current!(query, ingredients);
+      onChangeRef.current!(query, ingredients, tag);
     }, 400);
     return () => clearTimeout(timer);
-  }, [query, ingredients]);
+  }, [query, ingredients, tag]);
 
   function commitToken(raw: string) {
     const value = raw.trim().toLowerCase();
@@ -48,13 +53,18 @@ export function SearchBox({
     setIngredients(ingredients.filter((_, i) => i !== idx));
   }
 
+  function toggleTag(t: string) {
+    setTag(tag === t ? undefined : t);
+  }
+
   function submit() {
     if (onChange) {
-      onChange(query, ingredients);
+      onChange(query, ingredients, tag);
     } else {
       const params = new URLSearchParams();
       if (query.trim()) params.set("q", query.trim());
       if (ingredients.length) params.set("ingredients", ingredients.join(","));
+      if (tag) params.set("tag", tag);
       startTransition(() => {
         router.push(`/search?${params.toString()}`);
       });
@@ -143,6 +153,25 @@ export function SearchBox({
           {isPending ? "Buscando..." : "Buscar"}
         </button>
       </div>
+
+      {availableTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {availableTags.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => toggleTag(t)}
+              className={`text-xs px-2 py-1 rounded-md border transition ${
+                tag === t
+                  ? "bg-accent text-white border-accent"
+                  : "bg-card text-muted border-border hover:border-accent hover:text-accent"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

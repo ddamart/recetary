@@ -55,15 +55,17 @@ export const api = {
     const q = qs.toString();
     return request<RecipeMatch>(`/recipes/random${q ? `?${q}` : ""}`);
   },
-  search: (params: { q?: string; ingredients?: string[]; tag?: string; limit?: number; offset?: number }) => {
+  search: (params: { q?: string; ingredients?: string[]; tag?: string; sort?: string; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();
     if (params.q) qs.set("q", params.q);
     if (params.ingredients?.length) qs.set("ingredients", params.ingredients.join(","));
     if (params.tag) qs.set("tag", params.tag);
+    if (params.sort) qs.set("sort", params.sort);
     if (params.limit) qs.set("limit", String(params.limit));
     if (params.offset) qs.set("offset", String(params.offset));
     return request<RecipeMatch[]>(`/search?${qs.toString()}`);
   },
+  listTags: () => request<string[]>("/recipes/tags"),
   listIngredients: (params?: { q?: string; limit?: number }) => {
     const qs = new URLSearchParams();
     if (params?.q) qs.set("q", params.q);
@@ -76,6 +78,11 @@ export const api = {
   createRecipe: (payload: unknown) =>
     request<Recipe>("/recipes", {
       method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateRecipe: (id: number, payload: unknown) =>
+    request<Recipe>(`/recipes/${id}`, {
+      method: "PUT",
       body: JSON.stringify(payload),
     }),
 };

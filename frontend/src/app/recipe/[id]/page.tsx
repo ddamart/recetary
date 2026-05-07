@@ -15,9 +15,17 @@ export default async function RecipePage(props: PageProps<"/recipe/[id]">) {
 
   return (
     <article className="flex flex-col gap-8">
-      <Link href="/" className="text-sm text-accent hover:underline w-fit">
-        ← Volver
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/" className="text-sm text-accent hover:underline w-fit">
+          ← Volver
+        </Link>
+        <Link
+          href={`/recipe/${recipe.id}/edit`}
+          className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-accent-soft hover:border-accent transition"
+        >
+          Editar
+        </Link>
+      </div>
 
       <header className="grid lg:grid-cols-2 gap-8 items-start">
         <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-zinc-100 border border-border">
