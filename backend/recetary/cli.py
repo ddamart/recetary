@@ -266,6 +266,53 @@ def _find_by_source(source_ref: str) -> Optional[int]:
     return int(row["id"]) if row else None
 
 
+def cmd_generate_images(args: argparse.Namespace) -> int:
+    from .extraction.imagen import ImageGenerationError, generate_recipe_image
+
+    with db.get_conn() as conn:
+        total = repo.count_recipes(conn)
+        recipes = repo.list_recipes(conn, limit=total, offset=0)
+
+    if args.limit:
+        recipes = recipes[: args.limit]
+
+    if not recipes:
+        print("No recipes in the database.")
+        return 0
+
+    print(f"Processing {len(recipes)} recipe(s)\n")
+    succeeded = 0
+    failed = 0
+    skipped = 0
+
+    for index, r in enumerate(recipes, start=1):
+        print(f"[{index:>3}/{len(recipes)}]  {r.title}")
+        if r.image_path and not args.force:
+            print(f"    · already has image, skipping")
+            skipped += 1
+            continue
+        try:
+            png_bytes = generate_recipe_image(r.title)
+        except ImageGenerationError as e:
+            print(f"    ✗ generation failed: {e}")
+            failed += 1
+            continue
+        except Exception as e:  # noqa: BLE001
+            print(f"    ✗ unexpected error: {e!r}")
+            failed += 1
+            continue
+        filename = _save_cover_image(r.id, png_bytes)
+        with db.get_conn() as conn:
+            conn.execute(
+                "UPDATE recipes SET image_path = ? WHERE id = ?", (filename, r.id)
+            )
+        print(f"    ✓ saved {filename}")
+        succeeded += 1
+
+    print(f"\nDone — {succeeded} generated, {skipped} skipped, {failed} failed")
+    return 0 if failed == 0 else 1
+
+
 def cmd_list(args: argparse.Namespace) -> int:
     with db.get_conn() as conn:
         recipes = repo.list_recipes(conn, limit=args.limit, offset=0)
@@ -314,6 +361,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_list = sub.add_parser("list", help="List stored recipes")
     p_list.add_argument("--limit", type=int, default=50)
     p_list.set_defaults(func=cmd_list)
+
+    p_gen = sub.add_parser("generate-images", help="Generate Ghibli-style cover images for recipes")
+    p_gen.add_argument("--force", action="store_true", help="Regenerate even if image exists")
+    p_gen.add_argument("--limit", type=int, default=0, help="Max recipes to process (0 = all)")
+    p_gen.set_defaults(func=cmd_generate_images)
 
     return parser
 
