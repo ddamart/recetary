@@ -267,8 +267,6 @@ def _find_by_source(source_ref: str) -> Optional[int]:
 
 
 def cmd_generate_images(args: argparse.Namespace) -> int:
-    import time
-
     from .extraction.imagen import ImageGenerationError, generate_recipe_image
 
     with db.get_conn() as conn:
@@ -286,7 +284,6 @@ def cmd_generate_images(args: argparse.Namespace) -> int:
     succeeded = 0
     failed = 0
     skipped = 0
-    generated_this_minute = 0
 
     for index, r in enumerate(recipes, start=1):
         print(f"[{index:>3}/{len(recipes)}]  {r.title}")
@@ -294,12 +291,6 @@ def cmd_generate_images(args: argparse.Namespace) -> int:
             print(f"    · already has image, skipping")
             skipped += 1
             continue
-
-        # Rate-limit: Imagen allows 10 req/min — pause after every 9
-        if generated_this_minute >= 9:
-            print("    ⏳ rate-limit pause (60s)...")
-            time.sleep(60)
-            generated_this_minute = 0
 
         try:
             png_bytes = generate_recipe_image(r.title)
@@ -318,7 +309,6 @@ def cmd_generate_images(args: argparse.Namespace) -> int:
             )
         print(f"    ✓ saved {filename}")
         succeeded += 1
-        generated_this_minute += 1
 
     print(f"\nDone — {succeeded} generated, {skipped} skipped, {failed} failed")
     return 0 if failed == 0 else 1

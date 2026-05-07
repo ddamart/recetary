@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import os
+import time
 
 from google import genai
 from google.genai import types
+from google.genai.errors import ClientError
 
 from .common import load_dotenv_once
 
 MODEL = "imagen-4.0-fast-generate-001"
+
+MAX_RETRIES = 3
 
 STYLE_PREFIX = "A warm Studio Ghibli-style watercolor food illustration of"
 STYLE_SUFFIX = (
@@ -41,32 +45,51 @@ def _build_prompt(title: str, description: str | None = None) -> str:
     return f"{STYLE_PREFIX} {dish}. {STYLE_SUFFIX}"
 
 
+def _call_api(client: genai.Client, prompt: str) -> bytes:
+    """Call Imagen API with retry on 429 rate-limit errors."""
+    last_exc: Exception | None = None
+
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            response = client.models.generate_images(
+                model=MODEL,
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                    output_mime_type="image/png",
+                ),
+            )
+        except ClientError as e:
+            if e.status_code == 429 and attempt < MAX_RETRIES:
+                wait = 2 ** attempt * 10  # 10s, 20s, 40s
+                time.sleep(wait)
+                last_exc = e
+                continue
+            raise ImageGenerationError(f"Image generation failed: {e}") from e
+        except Exception as e:
+            raise ImageGenerationError(f"Image generation failed: {e}") from e
+
+        if not response.generated_images:
+            raise ImageGenerationError("Imagen returned no images")
+
+        image_bytes = response.generated_images[0].image.image_bytes
+        if not image_bytes:
+            raise ImageGenerationError("Imagen returned empty image data")
+
+        return image_bytes
+
+    raise ImageGenerationError(
+        f"Image generation failed after {MAX_RETRIES} retries: {last_exc}"
+    )
+
+
 def generate_recipe_image(title: str, description: str | None = None) -> bytes:
     """Generate a Ghibli-style PNG image for a recipe.
 
-    Returns raw PNG bytes. Raises ImageGenerationError on failure.
+    Returns raw PNG bytes. Retries on rate-limit (429) errors.
+    Raises ImageGenerationError on failure.
     """
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
     prompt = _build_prompt(title, description)
-
-    try:
-        response = client.models.generate_images(
-            model=MODEL,
-            prompt=prompt,
-            config=types.GenerateImagesConfig(
-                number_of_images=1,
-                output_mime_type="image/png",
-            ),
-        )
-    except Exception as e:
-        raise ImageGenerationError(f"Image generation failed: {e}") from e
-
-    if not response.generated_images:
-        raise ImageGenerationError("Imagen returned no images")
-
-    image_bytes = response.generated_images[0].image.image_bytes
-    if not image_bytes:
-        raise ImageGenerationError("Imagen returned empty image data")
-
-    return image_bytes
+    return _call_api(client, prompt)
