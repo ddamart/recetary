@@ -61,7 +61,14 @@ export function RecipeForm({
   }, [previewUrl, imageBlob]);
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
+    <div className="flex flex-col gap-6 max-w-4xl relative">
+      {/* Full-page overlay while generating image */}
+      {imageLoading && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex flex-col items-center justify-center gap-3">
+          <div className="w-12 h-12 border-3 border-white border-t-transparent rounded-full animate-spin" />
+          <span className="text-white text-sm font-medium">Generando imagen...</span>
+        </div>
+      )}
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">{header}</h1>
         <button
@@ -76,12 +83,7 @@ export function RecipeForm({
       {/* Image preview */}
       <div className="flex gap-4 items-start">
         <div className="w-48 aspect-[4/3] rounded-xl overflow-hidden bg-zinc-100 border border-border shrink-0">
-          {imageLoading ? (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-zinc-50">
-              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs text-muted">Generando imagen...</span>
-            </div>
-          ) : previewUrl ? (
+          {previewUrl ? (
             <img src={previewUrl} alt={draft.title} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl text-zinc-300">
