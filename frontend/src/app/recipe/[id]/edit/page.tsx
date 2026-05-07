@@ -19,6 +19,7 @@ export default function EditRecipePage() {
   const [loading, setLoading] = useState(true);
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -34,14 +35,14 @@ export default function EditRecipePage() {
   const regenerateImage = useCallback(async () => {
     if (!draft) return;
     setImageLoading(true);
-    setError(null);
+    setImageError(null);
     try {
       const blob = await api.generateImage(draft.title, draft.subtitle);
       setImageBlob(blob);
       await api.uploadImage(id, blob);
     } catch (e: unknown) {
       if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
-        setError(e.message || "Límite de generación de imágenes alcanzado.");
+        setImageError(e.message || "Límite de generación de imágenes alcanzado.");
       }
     } finally {
       setImageLoading(false);
@@ -106,6 +107,8 @@ export default function EditRecipePage() {
       imageBlob={imageBlob}
       imageUrl={imageUrl(recipe?.image_path)}
       imageLoading={imageLoading}
+      imageError={imageError}
+      onDismissImageError={() => setImageError(null)}
       onRegenerateImage={regenerateImage}
       extraActions={
         <button

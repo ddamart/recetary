@@ -32,6 +32,7 @@ export default function AddPage() {
   const [backend, setBackend] = useState<string>("gemini");
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getInfo().then((info) => setBackend(info.extractor_backend)).catch(() => {});
@@ -42,15 +43,14 @@ export default function AddPage() {
   // Auto-generate image when draft is set
   const generateImage = useCallback(async (title: string, subtitle: string | null) => {
     setImageLoading(true);
-    setError(null);
+    setImageError(null);
     try {
       const blob = await api.generateImage(title, subtitle);
       setImageBlob(blob);
     } catch (e: unknown) {
       if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
-        setError(e.message || "Límite de generación de imágenes alcanzado.");
+        setImageError(e.message || "Límite de generación de imágenes alcanzado.");
       }
-      // Other image errors are non-blocking
     } finally {
       setImageLoading(false);
     }
@@ -125,6 +125,8 @@ export default function AddPage() {
         error={error}
         imageBlob={imageBlob}
         imageLoading={imageLoading}
+        imageError={imageError}
+        onDismissImageError={() => setImageError(null)}
         onRegenerateImage={() => generateImage(draft.title, draft.subtitle)}
       />
     );

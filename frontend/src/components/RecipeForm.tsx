@@ -24,6 +24,8 @@ export interface RecipeFormProps {
   imageUrl?: string | null;
   onRegenerateImage?: () => void;
   imageLoading?: boolean;
+  imageError?: string | null;
+  onDismissImageError?: () => void;
 }
 
 export function RecipeForm({
@@ -41,6 +43,8 @@ export function RecipeForm({
   imageUrl: existingImageUrl,
   onRegenerateImage,
   imageLoading,
+  imageError,
+  onDismissImageError,
 }: RecipeFormProps) {
   function patch(p: Partial<RecipeDraft>) {
     setDraft({ ...draft, ...p });
@@ -67,6 +71,21 @@ export function RecipeForm({
         <div className="fixed inset-0 z-50 bg-black/40 flex flex-col items-center justify-center gap-3">
           <div className="w-12 h-12 border-3 border-white border-t-transparent rounded-full animate-spin" />
           <span className="text-white text-sm font-medium">Generando imagen...</span>
+        </div>
+      )}
+      {/* Dismissible modal for image errors */}
+      {imageError && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-sm w-full p-6 flex flex-col gap-4">
+            <p className="text-sm text-red-700">{imageError}</p>
+            <button
+              type="button"
+              onClick={onDismissImageError}
+              className="self-end px-4 py-2 rounded-md bg-accent text-white text-sm font-medium hover:opacity-90"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
       <header className="flex items-center justify-between">
