@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from .. import db, repo
-from ..extraction.imagen import ImageGenerationError, generate_recipe_image
+from ..extraction.imagen import ImageGenerationError, RateLimitError, generate_recipe_image
 from ..models import Recipe, RecipeCreate, RecipeSummary
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
@@ -57,6 +57,12 @@ async def generate_image(payload: ImageGenerateRequest) -> Response:
     try:
         png_bytes = await asyncio.to_thread(
             generate_recipe_image, payload.title, payload.subtitle
+        )
+    except RateLimitError as e:
+        raise HTTPException(
+            status_code=429,
+            detail=str(e),
+            headers={"Retry-After": str(e.retry_after)} if e.retry_after else None,
         )
     except ImageGenerationError as e:
         code = 503 if "unavailable" in str(e).lower() else 502

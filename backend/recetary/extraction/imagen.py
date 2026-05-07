@@ -28,6 +28,14 @@ class ImageGenerationError(RuntimeError):
     """Raised when image generation fails or is unavailable."""
 
 
+class RateLimitError(ImageGenerationError):
+    """Raised when rate limit is exhausted after retries."""
+
+    def __init__(self, message: str, retry_after: int | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 def _get_api_key() -> str:
     load_dotenv_once()
     key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
@@ -46,9 +54,16 @@ def _build_prompt(title: str, subtitle: str | None = None) -> str:
     return PROMPT_TEMPLATE.format(dish=dish)
 
 
+def _parse_retry_seconds(exc: ClientError) -> int | None:
+    """Extract retry delay in seconds from a Google API 429 error."""
+    import re
+    match = re.search(r"retry in (\d+(?:\.\d+)?)s", str(exc), re.IGNORECASE)
+    return int(float(match.group(1))) + 1 if match else None
+
+
 def _call_api(client: genai.Client, prompt: str) -> bytes:
     """Call Imagen API with retry on 429 rate-limit errors."""
-    last_exc: Exception | None = None
+    last_exc: ClientError | None = None
 
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -66,6 +81,9 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
                 time.sleep(wait)
                 last_exc = e
                 continue
+            if e.status_code == 429:
+                last_exc = e
+                break
             raise ImageGenerationError(f"Image generation failed: {e}") from e
         except Exception as e:
             raise ImageGenerationError(f"Image generation failed: {e}") from e
@@ -79,8 +97,10 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
 
         return image_bytes
 
-    raise ImageGenerationError(
-        f"Image generation failed after {MAX_RETRIES} retries: {last_exc}"
+    retry_after = _parse_retry_seconds(last_exc) if last_exc else None
+    raise RateLimitError(
+        "Límite de generación alcanzado. Espera un momento antes de reintentar.",
+        retry_after=retry_after,
     )
 
 

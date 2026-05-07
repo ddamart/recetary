@@ -42,11 +42,15 @@ export default function AddPage() {
   // Auto-generate image when draft is set
   const generateImage = useCallback(async (title: string, subtitle: string | null) => {
     setImageLoading(true);
+    setError(null);
     try {
       const blob = await api.generateImage(title, subtitle);
       setImageBlob(blob);
-    } catch {
-      // Image generation is optional — don't block the flow
+    } catch (e: unknown) {
+      if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
+        setError("Límite de generación de imágenes alcanzado. Espera un momento y prueba de nuevo.");
+      }
+      // Other image errors are non-blocking
     } finally {
       setImageLoading(false);
     }

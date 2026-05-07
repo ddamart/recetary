@@ -34,12 +34,15 @@ export default function EditRecipePage() {
   const regenerateImage = useCallback(async () => {
     if (!draft) return;
     setImageLoading(true);
+    setError(null);
     try {
       const blob = await api.generateImage(draft.title, draft.subtitle);
       setImageBlob(blob);
       await api.uploadImage(id, blob);
-    } catch {
-      // non-blocking
+    } catch (e: unknown) {
+      if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
+        setError("Límite de generación de imágenes alcanzado. Espera un momento y prueba de nuevo.");
+      }
     } finally {
       setImageLoading(false);
     }
