@@ -159,3 +159,13 @@ def test_resolve_ingredient_exact_and_fuzzy(temp_db):
         fuzzy = search.resolve_ingredient(conn, "Mozarela")  # typo + caps
     assert exact is not None and exact[1] == "cebolla" and exact[2] == 100
     assert fuzzy is not None and fuzzy[1] == "mozzarella"
+
+
+def test_search_title_infix_substring(temp_db):
+    """Searching 'soba' should find 'Yakisoba de verduras' via LIKE fallback."""
+    with db.get_conn() as conn:
+        yaki_id = _seed(conn, title="Yakisoba de verduras")
+        _seed(conn, title="Ensalada de tomate")  # decoy
+        results = search.search_recipes(conn, q="soba")
+    assert any(r.id == yaki_id for r in results)
+    assert len(results) == 1

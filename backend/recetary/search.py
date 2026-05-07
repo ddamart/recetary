@@ -124,19 +124,40 @@ def _fts_query(q: str) -> str:
     return " ".join(f"{t}*" for t in tokens)
 
 
-def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
-    """FTS5 prefix match → fuzzy fallback. Returns recipe ids ordered by relevance."""
-    fts = _fts_query(q)
-    if not fts:
-        return []
-    rows = conn.execute(
-        "SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ? ORDER BY bm25(recipes_fts)",
-        (fts,),
-    ).fetchall()
-    if rows:
-        return [int(r["rowid"]) for r in rows]
+def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
+    """SQL LIKE substring match on title and subtitle.
 
-    # Fallback: rapidfuzz over recipe titles + subtitles
+    Slower than FTS5 (table scan) but catches infix matches like
+    "soba" inside "Yakisoba".  Instant for hundreds of recipes.
+    """
+    pattern = f"%{q.strip().lower()}%"
+    rows = conn.execute(
+        "SELECT id FROM recipes "
+        "WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(subtitle, '')) LIKE ? "
+        "ORDER BY created_at DESC",
+        (pattern, pattern),
+    ).fetchall()
+    return [int(r["id"]) for r in rows]
+
+
+def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
+    """Tier 1 FTS5 prefix → Tier 2 LIKE substring → Tier 3 fuzzy fallback."""
+    # Tier 1: FTS5 prefix (fast, BM25-ranked)
+    fts = _fts_query(q)
+    if fts:
+        rows = conn.execute(
+            "SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ? ORDER BY bm25(recipes_fts)",
+            (fts,),
+        ).fetchall()
+        if rows:
+            return [int(r["rowid"]) for r in rows]
+
+    # Tier 2: LIKE substring (catches infix like "soba" in "Yakisoba")
+    like_ids = _like_match_ids(conn, q)
+    if like_ids:
+        return like_ids
+
+    # Tier 3: rapidfuzz fallback for typo correction
     candidates = conn.execute(
         "SELECT id, title || ' ' || COALESCE(subtitle, '') AS hay FROM recipes"
     ).fetchall()
@@ -145,7 +166,7 @@ def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
     scored = process.extract(
         q,
         {int(r["id"]): r["hay"] for r in candidates},
-        scorer=fuzz.WRatio,
+        scorer=fuzz.partial_ratio,
         score_cutoff=TITLE_FUZZY_THRESHOLD,
         limit=50,
     )

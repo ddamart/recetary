@@ -1,24 +1,37 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 
 interface Props {
   initialQuery?: string;
   initialIngredients?: string[];
   size?: "lg" | "md";
+  onChange?: (q: string, ingredients: string[]) => void;
 }
 
 export function SearchBox({
   initialQuery = "",
   initialIngredients = [],
   size = "md",
+  onChange,
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [ingredients, setIngredients] = useState<string[]>(initialIngredients);
   const [draft, setDraft] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  // Debounced onChange — fires 400ms after the last query/ingredients change.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    if (!onChangeRef.current) return;
+    const timer = setTimeout(() => {
+      onChangeRef.current!(query, ingredients);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [query, ingredients]);
 
   function commitToken(raw: string) {
     const value = raw.trim().toLowerCase();
@@ -36,12 +49,16 @@ export function SearchBox({
   }
 
   function submit() {
-    const params = new URLSearchParams();
-    if (query.trim()) params.set("q", query.trim());
-    if (ingredients.length) params.set("ingredients", ingredients.join(","));
-    startTransition(() => {
-      router.push(`/search?${params.toString()}`);
-    });
+    if (onChange) {
+      onChange(query, ingredients);
+    } else {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set("q", query.trim());
+      if (ingredients.length) params.set("ingredients", ingredients.join(","));
+      startTransition(() => {
+        router.push(`/search?${params.toString()}`);
+      });
+    }
   }
 
   function handleKey(e: KeyboardEvent<HTMLInputElement>) {
