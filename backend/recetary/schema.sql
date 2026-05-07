@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
     quantity_value REAL,
     quantity_unit  TEXT,
     notes          TEXT,
+    substitutes    TEXT,
     is_pantry      INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (recipe_id, ingredient_id)
 );

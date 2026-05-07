@@ -26,6 +26,7 @@ class IngredientRef(BaseModel):
     quantity_value: Optional[float] = None
     quantity_unit: Optional[str] = None
     notes: Optional[str] = None
+    substitutes: Optional[str] = None
     is_pantry: bool = False
 
 
@@ -41,6 +42,7 @@ class RecipeIngredientOut(BaseModel):
     quantity_value: Optional[float]
     quantity_unit: Optional[str]
     notes: Optional[str]
+    substitutes: Optional[str]
     is_pantry: bool
 
 

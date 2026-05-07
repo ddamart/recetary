@@ -40,6 +40,7 @@ export interface RecipeIngredient {
   quantity_value: number | null;
   quantity_unit: string | null;
   notes: string | null;
+  substitutes: string | null;
   is_pantry: boolean;
 }
 
@@ -91,6 +92,7 @@ export interface IngredientDraft {
   category: IngredientCategory;
   quantity_raw: string | null;
   is_pantry: boolean;
+  substitutes: string | null;
   notes: string | null;
 }
 

@@ -73,8 +73,8 @@ def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> int:
             """
             INSERT INTO recipe_ingredients (
                 recipe_id, ingredient_id, quantity_raw,
-                quantity_value, quantity_unit, notes, is_pantry
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                quantity_value, quantity_unit, notes, substitutes, is_pantry
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 recipe_id,
@@ -83,6 +83,7 @@ def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> int:
                 value,
                 unit,
                 ing.notes,
+                ing.substitutes,
                 int(ing.is_pantry),
             ),
         )
@@ -115,7 +116,7 @@ def _hydrate_recipe(conn: sqlite3.Connection, row: sqlite3.Row) -> Recipe:
         """
         SELECT i.id AS ingredient_id, i.name, i.category,
                ri.quantity_raw, ri.quantity_value, ri.quantity_unit,
-               ri.notes, ri.is_pantry
+               ri.notes, ri.substitutes, ri.is_pantry
         FROM recipe_ingredients ri
         JOIN ingredients i ON i.id = ri.ingredient_id
         WHERE ri.recipe_id = ?
@@ -134,6 +135,7 @@ def _hydrate_recipe(conn: sqlite3.Connection, row: sqlite3.Row) -> Recipe:
             quantity_value=r["quantity_value"],
             quantity_unit=r["quantity_unit"],
             notes=r["notes"],
+            substitutes=r["substitutes"],
             is_pantry=bool(r["is_pantry"]),
         )
         for r in ingredient_rows
@@ -300,8 +302,8 @@ def update_recipe(
             value, unit = parse_quantity(ing.quantity_raw)
         conn.execute(
             "INSERT INTO recipe_ingredients(recipe_id, ingredient_id, quantity_raw, "
-            "quantity_value, quantity_unit, notes, is_pantry) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (recipe_id, ingredient_id, ing.quantity_raw, value, unit, ing.notes, int(ing.is_pantry)),
+            "quantity_value, quantity_unit, notes, substitutes, is_pantry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (recipe_id, ingredient_id, ing.quantity_raw, value, unit, ing.notes, ing.substitutes, int(ing.is_pantry)),
         )
     for index, step in enumerate(payload.steps, start=1):
         conn.execute(

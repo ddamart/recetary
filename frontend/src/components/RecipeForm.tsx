@@ -127,7 +127,7 @@ export function RecipeForm({
             patch({
               ingredients: [
                 ...draft.ingredients,
-                { name: "", category: "other", quantity_raw: "", is_pantry: false, notes: null },
+                { name: "", category: "other", quantity_raw: "", is_pantry: false, substitutes: null, notes: null },
               ],
             })
           }
@@ -136,7 +136,7 @@ export function RecipeForm({
           {draft.ingredients.map((ing, i) => (
             <li
               key={i}
-              className="grid grid-cols-[1fr_140px_140px_auto_auto] gap-2 items-center"
+              className="grid grid-cols-[1fr_140px_100px_140px_auto_auto] gap-2 items-center"
             >
               <input
                 value={ing.name}
@@ -177,6 +177,18 @@ export function RecipeForm({
                   })
                 }
                 placeholder="cantidad"
+                className="input"
+              />
+              <input
+                value={ing.substitutes ?? ""}
+                onChange={(e) =>
+                  patch({
+                    ingredients: draft.ingredients.map((x, idx) =>
+                      idx === i ? { ...x, substitutes: e.target.value || null } : x,
+                    ),
+                  })
+                }
+                placeholder="sustitutos"
                 className="input"
               />
               <label className="text-xs flex items-center gap-1 text-muted">

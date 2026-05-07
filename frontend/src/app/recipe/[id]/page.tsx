@@ -96,6 +96,9 @@ export default async function RecipePage(props: PageProps<"/recipe/[id]">) {
                 <li key={i.ingredient.id} className="flex justify-between gap-2 border-b border-border/60 py-1">
                   <span className="capitalize">
                     {i.ingredient.name}
+                    {i.substitutes && (
+                      <span className="text-muted text-xs italic"> (o: {i.substitutes})</span>
+                    )}
                     {i.notes && (
                       <span className="text-muted text-xs"> · {i.notes}</span>
                     )}

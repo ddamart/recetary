@@ -15,6 +15,7 @@ export function recipeToDraft(recipe: Recipe): RecipeDraft {
       category: ri.ingredient.category,
       quantity_raw: ri.quantity_raw,
       is_pantry: ri.is_pantry,
+      substitutes: ri.substitutes,
       notes: ri.notes,
     })),
     steps: recipe.steps.map((s) => ({ title: s.title, text: s.text })),
