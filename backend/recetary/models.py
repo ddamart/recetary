@@ -88,6 +88,13 @@ class RecipeSummary(BaseModel):
     tags: list[str]
 
 
+class RecipeMatch(RecipeSummary):
+    """Search result enriched with ingredients the user did not list."""
+
+    missing_ingredients: list[str] = Field(default_factory=list)
+    matched_ingredients: list[str] = Field(default_factory=list)
+
+
 class Recipe(BaseModel):
     id: int
     title: str

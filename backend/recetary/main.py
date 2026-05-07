@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import extract, ingredients, recipes
+from .routers import extract, ingredients, recipes, search
 
 app = FastAPI(title="Recetary", version="0.1.0")
 
@@ -19,6 +19,7 @@ app.add_middleware(
 app.include_router(recipes.router)
 app.include_router(ingredients.router)
 app.include_router(extract.router)
+app.include_router(search.router)
 
 
 @app.get("/healthz")
