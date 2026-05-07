@@ -35,12 +35,13 @@ def _canonical_ingredient_names() -> list[str]:
 
 
 def _save_cover_image(recipe_id: int, image_bytes: bytes, ext: str = "png") -> str:
-    """Save a recipe's cover image under data/images/ and return the relative path."""
+    """Save a recipe's cover image under data/images/ and return the filename
+    (relative to the /static/images mount the API exposes)."""
     images_dir = db.REPO_ROOT / "data" / "images"
     images_dir.mkdir(parents=True, exist_ok=True)
-    target = images_dir / f"{recipe_id}.{ext}"
-    target.write_bytes(image_bytes)
-    return f"images/{target.name}"
+    filename = f"{recipe_id}.{ext}"
+    (images_dir / filename).write_bytes(image_bytes)
+    return filename
 
 
 def _commit_recipe(payload: RecipeCreate, *, cover_png: Optional[bytes] = None) -> int:
