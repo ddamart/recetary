@@ -90,7 +90,7 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
                     ) from e
                 # Per-minute rate limit → retry with backoff
                 if attempt < MAX_RETRIES:
-                    wait = 2 ** attempt * 10  # 10s, 20s, 40s
+                    wait = 3 + attempt * 2  # 3s, 5s, 7s
                     time.sleep(wait)
                     last_exc = e
                     continue
