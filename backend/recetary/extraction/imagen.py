@@ -8,7 +8,7 @@ from google.genai import types
 
 from .common import load_dotenv_once
 
-MODEL = "imagen-4.0-generate-001"
+MODEL = "imagen-4.0-fast-generate-001"
 
 STYLE_PREFIX = "A warm Studio Ghibli-style watercolor food illustration of"
 STYLE_SUFFIX = (
