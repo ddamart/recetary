@@ -1,4 +1,4 @@
-"""Endpoints that turn raw inputs into a `RecipeDraft` via Claude."""
+"""Endpoints that turn raw inputs into a `RecipeDraft` via an LLM backend."""
 from __future__ import annotations
 
 from typing import Optional
@@ -6,19 +6,19 @@ from typing import Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from .. import db, repo
-from ..extraction import RecipeDraft, RecipeExtractor, ExtractionError
+from ..extraction import RecipeDraft, ExtractionError, get_extractor
 from ..extraction import images as image_io
 from ..extraction import url as url_io
 
 router = APIRouter(prefix="/recipes", tags=["extract"])
 
-_extractor: Optional[RecipeExtractor] = None
+_extractor = None
 
 
-def _get_extractor() -> RecipeExtractor:
+def _get_extractor():
     global _extractor
     if _extractor is None:
-        _extractor = RecipeExtractor()
+        _extractor = get_extractor()
     return _extractor
 
 
