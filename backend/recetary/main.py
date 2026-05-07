@@ -18,10 +18,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Order matters: search.router has /recipes/random which would otherwise be
+# captured by recipes.router's /recipes/{recipe_id} (and rejected as a
+# non-integer). Same reason extract.router (/recipes/extract) goes first.
+app.include_router(search.router)
+app.include_router(extract.router)
 app.include_router(recipes.router)
 app.include_router(ingredients.router)
-app.include_router(extract.router)
-app.include_router(search.router)
 
 # Serve recipe images stored in data/images/
 _images_dir = db.REPO_ROOT / "data" / "images"

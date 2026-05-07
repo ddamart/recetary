@@ -20,7 +20,7 @@ if (-not (Test-Path frontend\node_modules)) {
     Pop-Location
 }
 if (-not (Test-Path data\recetary.db)) {
-    Write-Host "Database not found — initializing..." -ForegroundColor Yellow
+    Write-Host "Database not found -- initializing..." -ForegroundColor Yellow
     & .\.venv\Scripts\recetary.exe init
 }
 
@@ -28,8 +28,8 @@ $backendCmd = ".\.venv\Scripts\python.exe -m uvicorn recetary.main:app --reload 
 $frontendCmd = "Set-Location frontend ; npm run dev"
 
 Write-Host ""
-Write-Host "Starting backend  → http://localhost:8000  (docs at /docs)" -ForegroundColor Green
-Write-Host "Starting frontend → http://localhost:3000" -ForegroundColor Green
+Write-Host "Starting backend  -> http://localhost:8000  (docs at /docs)" -ForegroundColor Green
+Write-Host "Starting frontend -> http://localhost:3000" -ForegroundColor Green
 Write-Host ""
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot' ; $backendCmd"
