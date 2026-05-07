@@ -264,6 +264,7 @@ def search_recipes(
             ordered_ids = [int(r["id"]) for r in rows]
         else:
             ordered_ids = ordered_title_ids
+        page_ids = ordered_ids[offset : offset + limit]
     elif candidate_ids is not None:
         placeholders = ",".join("?" * len(candidate_ids))
         rows = conn.execute(
@@ -271,14 +272,14 @@ def search_recipes(
             tuple(candidate_ids),
         ).fetchall()
         ordered_ids = [int(r["id"]) for r in rows]
+        page_ids = ordered_ids[offset : offset + limit]
     else:
         rows = conn.execute(
             f"SELECT id FROM recipes ORDER BY {order_col} LIMIT ? OFFSET ?",
             (limit, offset),
         ).fetchall()
-        ordered_ids = [int(r["id"]) for r in rows]
+        page_ids = [int(r["id"]) for r in rows]
 
-    page_ids = ordered_ids[offset : offset + limit]
     return [_hydrate_match(conn, rid, matched_names) for rid in page_ids]
 
 
