@@ -200,27 +200,29 @@ def list_recipes(
     limit: int = 24,
     offset: int = 0,
     tag: Optional[str] = None,
+    sort: str = "random",
 ) -> list[RecipeSummary]:
+    order = "RANDOM()" if sort == "random" else "r.created_at DESC"
     if tag:
         rows = conn.execute(
-            """
+            f"""
             SELECT r.id, r.title, r.subtitle, r.image_path, r.total_time_min, r.servings,
                    (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) AS ic
             FROM recipes r
             JOIN tags t ON t.recipe_id = r.id
             WHERE t.tag = ?
-            ORDER BY r.created_at DESC
+            ORDER BY {order}
             LIMIT ? OFFSET ?
             """,
             (tag, limit, offset),
         ).fetchall()
     else:
         rows = conn.execute(
-            """
+            f"""
             SELECT r.id, r.title, r.subtitle, r.image_path, r.total_time_min, r.servings,
                    (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) AS ic
             FROM recipes r
-            ORDER BY r.created_at DESC
+            ORDER BY {order}
             LIMIT ? OFFSET ?
             """,
             (limit, offset),

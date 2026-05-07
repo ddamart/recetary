@@ -97,7 +97,7 @@ export function SearchableHome({ initialRecipes }: Props) {
 
   const heading = hasQuery
     ? `${results.length} ${results.length === 1 ? "receta" : "recetas"}`
-    : "Recetas recientes";
+    : "Recetas";
 
   return (
     <>
