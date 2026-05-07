@@ -1,14 +1,23 @@
 """Recipe CRUD endpoints."""
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
+from pydantic import BaseModel
 
 from .. import db, repo
+from ..extraction.imagen import ImageGenerationError, generate_recipe_image
 from ..models import Recipe, RecipeCreate, RecipeSummary
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
+
+
+class ImageGenerateRequest(BaseModel):
+    title: str
+    description: Optional[str] = None
 
 
 @router.get("/count", response_model=int)
@@ -40,6 +49,43 @@ def create_recipe(payload: RecipeCreate) -> Recipe:
         recipe = repo.get_recipe(conn, recipe_id)
     assert recipe is not None
     return recipe
+
+
+@router.post("/generate-image")
+async def generate_image(payload: ImageGenerateRequest) -> Response:
+    """Generate a Ghibli-style preview image from a recipe title."""
+    try:
+        png_bytes = await asyncio.to_thread(
+            generate_recipe_image, payload.title, payload.description
+        )
+    except ImageGenerationError as e:
+        code = 503 if "unavailable" in str(e).lower() else 502
+        raise HTTPException(status_code=code, detail=str(e))
+    return Response(content=png_bytes, media_type="image/png")
+
+
+@router.post("/{recipe_id}/image")
+async def upload_recipe_image(
+    recipe_id: int,
+    file: UploadFile = File(...),
+) -> dict[str, str]:
+    """Upload/replace the cover image for a recipe."""
+    with db.get_conn() as conn:
+        recipe = repo.get_recipe(conn, recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="recipe not found")
+
+    image_bytes = await file.read()
+    images_dir = db.REPO_ROOT / "data" / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{recipe_id}.png"
+    (images_dir / filename).write_bytes(image_bytes)
+
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE recipes SET image_path = ? WHERE id = ?", (filename, recipe_id)
+        )
+    return {"image_path": filename}
 
 
 @router.get("/{recipe_id}", response_model=Recipe)

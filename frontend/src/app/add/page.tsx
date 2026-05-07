@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { RecipeForm } from "@/components/RecipeForm";
 import type { RecipeDraft } from "@/lib/types";
@@ -30,12 +30,33 @@ export default function AddPage() {
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
   const [backend, setBackend] = useState<string>("gemini");
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
 
   useEffect(() => {
     api.getInfo().then((info) => setBackend(info.extractor_backend)).catch(() => {});
   }, []);
 
   const twitterBlocked = source === "video" && isTwitterUrl(url) && backend !== "gemini";
+
+  // Auto-generate image when draft is set
+  const generateImage = useCallback(async (title: string, description: string | null) => {
+    setImageLoading(true);
+    try {
+      const blob = await api.generateImage(title, description);
+      setImageBlob(blob);
+    } catch {
+      // Image generation is optional — don't block the flow
+    } finally {
+      setImageLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (draft) {
+      generateImage(draft.title, draft.description);
+    }
+  }, [draft?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function extract() {
     setError(null);
@@ -77,6 +98,9 @@ export default function AddPage() {
         raw_text: source === "text" ? text : null,
       };
       const created = await api.createRecipe(payload);
+      if (imageBlob) {
+        try { await api.uploadImage(created.id, imageBlob); } catch {}
+      }
       router.push(`/recipe/${created.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
@@ -90,11 +114,14 @@ export default function AddPage() {
         draft={draft}
         setDraft={setDraft}
         header="Revisa antes de guardar"
-        onBack={() => setDraft(null)}
+        onBack={() => { setDraft(null); setImageBlob(null); }}
         backLabel="← Cambiar fuente"
         onSubmit={commit}
         busy={busy}
         error={error}
+        imageBlob={imageBlob}
+        imageLoading={imageLoading}
+        onRegenerateImage={() => generateImage(draft.title, draft.description)}
       />
     );
   }

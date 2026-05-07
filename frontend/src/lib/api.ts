@@ -77,6 +77,26 @@ export const api = {
   extractDraft: async (form: FormData): Promise<RecipeDraft> =>
     request<RecipeDraft>("/recipes/extract", { method: "POST", body: form }),
   getInfo: () => request<{ extractor_backend: string }>("/info"),
+  generateImage: async (title: string, description: string | null): Promise<Blob> => {
+    const res = await fetch(`${API_URL}/recipes/generate-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new ApiError(res.status, text || res.statusText);
+    }
+    return res.blob();
+  },
+  uploadImage: async (recipeId: number, blob: Blob): Promise<{ image_path: string }> => {
+    const form = new FormData();
+    form.append("file", blob, `${recipeId}.png`);
+    return request<{ image_path: string }>(`/recipes/${recipeId}/image`, {
+      method: "POST",
+      body: form,
+    });
+  },
   createRecipe: (payload: unknown) =>
     request<Recipe>("/recipes", {
       method: "POST",

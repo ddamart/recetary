@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import {
   CATEGORY_LABEL_ES,
   type IngredientCategory,
@@ -19,6 +20,10 @@ export interface RecipeFormProps {
   busy: boolean;
   error: string | null;
   extraActions?: React.ReactNode;
+  imageBlob?: Blob | null;
+  imageUrl?: string | null;
+  onRegenerateImage?: () => void;
+  imageLoading?: boolean;
 }
 
 export function RecipeForm({
@@ -32,10 +37,28 @@ export function RecipeForm({
   busy,
   error,
   extraActions,
+  imageBlob,
+  imageUrl: existingImageUrl,
+  onRegenerateImage,
+  imageLoading,
 }: RecipeFormProps) {
   function patch(p: Partial<RecipeDraft>) {
     setDraft({ ...draft, ...p });
   }
+
+  const previewUrl = useMemo(() => {
+    if (imageBlob) return URL.createObjectURL(imageBlob);
+    return existingImageUrl ?? null;
+  }, [imageBlob, existingImageUrl]);
+
+  // Revoke object URL on cleanup
+  useEffect(() => {
+    return () => {
+      if (imageBlob && previewUrl && previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl, imageBlob]);
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
@@ -49,6 +72,33 @@ export function RecipeForm({
           {backLabel}
         </button>
       </header>
+
+      {/* Image preview */}
+      <div className="flex gap-4 items-start">
+        <div className="w-48 aspect-[4/3] rounded-xl overflow-hidden bg-zinc-100 border border-border shrink-0">
+          {imageLoading ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : previewUrl ? (
+            <img src={previewUrl} alt={draft.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-4xl text-zinc-300">
+              🍽️
+            </div>
+          )}
+        </div>
+        {onRegenerateImage && (
+          <button
+            type="button"
+            onClick={onRegenerateImage}
+            disabled={imageLoading}
+            className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-accent text-muted hover:text-accent disabled:opacity-50"
+          >
+            {imageLoading ? "Generando..." : "Regenerar imagen"}
+          </button>
+        )}
+      </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Título">

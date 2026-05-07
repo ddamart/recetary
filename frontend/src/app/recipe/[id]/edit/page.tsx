@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { api, imageUrl } from "@/lib/api";
 import { recipeToDraft } from "@/lib/convert";
 import { RecipeForm } from "@/components/RecipeForm";
 import type { Recipe, RecipeDraft } from "@/lib/types";
@@ -17,6 +17,8 @@ export default function EditRecipePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
 
   useEffect(() => {
     api
@@ -28,6 +30,20 @@ export default function EditRecipePage() {
       .catch(() => setError("No se pudo cargar la receta"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const regenerateImage = useCallback(async () => {
+    if (!draft) return;
+    setImageLoading(true);
+    try {
+      const blob = await api.generateImage(draft.title, draft.description);
+      setImageBlob(blob);
+      await api.uploadImage(id, blob);
+    } catch {
+      // non-blocking
+    } finally {
+      setImageLoading(false);
+    }
+  }, [draft, id]);
 
   async function save() {
     if (!draft || !recipe) return;
@@ -84,6 +100,10 @@ export default function EditRecipePage() {
       submitLabel="Guardar cambios"
       busy={busy}
       error={error}
+      imageBlob={imageBlob}
+      imageUrl={imageUrl(recipe?.image_path)}
+      imageLoading={imageLoading}
+      onRegenerateImage={regenerateImage}
       extraActions={
         <button
           type="button"

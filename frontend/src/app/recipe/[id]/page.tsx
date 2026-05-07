@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { api, imageUrl } from "@/lib/api";
 import { CATEGORY_LABEL_ES, DIFFICULTY_LABEL_ES } from "@/lib/types";
 import { formatTime } from "@/lib/format";
+import { RegenerateImageButton } from "./RegenerateImageButton";
 
 export default async function RecipePage(props: PageProps<"/recipe/[id]">) {
   const { id } = await props.params;
@@ -19,12 +20,15 @@ export default async function RecipePage(props: PageProps<"/recipe/[id]">) {
         <Link href="/" className="text-sm text-accent hover:underline w-fit">
           ← Volver
         </Link>
-        <Link
-          href={`/recipe/${recipe.id}/edit`}
-          className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-accent-soft hover:border-accent transition"
-        >
-          Editar
-        </Link>
+        <div className="flex gap-2">
+          <RegenerateImageButton recipeId={recipe.id} title={recipe.title} description={recipe.description} />
+          <Link
+            href={`/recipe/${recipe.id}/edit`}
+            className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-accent-soft hover:border-accent transition"
+          >
+            Editar
+          </Link>
+        </div>
       </div>
 
       <header className="grid lg:grid-cols-2 gap-8 items-start">
