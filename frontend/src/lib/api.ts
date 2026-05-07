@@ -77,11 +77,11 @@ export const api = {
   extractDraft: async (form: FormData): Promise<RecipeDraft> =>
     request<RecipeDraft>("/recipes/extract", { method: "POST", body: form }),
   getInfo: () => request<{ extractor_backend: string }>("/info"),
-  generateImage: async (title: string, description: string | null): Promise<Blob> => {
+  generateImage: async (title: string, subtitle: string | null): Promise<Blob> => {
     const res = await fetch(`${API_URL}/recipes/generate-image`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description }),
+      body: JSON.stringify({ title, subtitle }),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");

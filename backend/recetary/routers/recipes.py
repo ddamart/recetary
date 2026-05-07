@@ -17,7 +17,7 @@ router = APIRouter(prefix="/recipes", tags=["recipes"])
 
 class ImageGenerateRequest(BaseModel):
     title: str
-    description: Optional[str] = None
+    subtitle: Optional[str] = None
 
 
 @router.get("/count", response_model=int)
@@ -56,7 +56,7 @@ async def generate_image(payload: ImageGenerateRequest) -> Response:
     """Generate a Ghibli-style preview image from a recipe title."""
     try:
         png_bytes = await asyncio.to_thread(
-            generate_recipe_image, payload.title, payload.description
+            generate_recipe_image, payload.title, payload.subtitle
         )
     except ImageGenerationError as e:
         code = 503 if "unavailable" in str(e).lower() else 502

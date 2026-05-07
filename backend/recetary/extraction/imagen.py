@@ -39,10 +39,10 @@ def _get_api_key() -> str:
     return key
 
 
-def _build_prompt(title: str, description: str | None = None) -> str:
+def _build_prompt(title: str, subtitle: str | None = None) -> str:
     dish = title
-    if description:
-        dish = f"{title} ({description})"
+    if subtitle:
+        dish = f"{title} ({subtitle})"
     return PROMPT_TEMPLATE.format(dish=dish)
 
 
@@ -84,7 +84,7 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
     )
 
 
-def generate_recipe_image(title: str, description: str | None = None) -> bytes:
+def generate_recipe_image(title: str, subtitle: str | None = None) -> bytes:
     """Generate a Ghibli-style PNG image for a recipe.
 
     Returns raw PNG bytes. Retries on rate-limit (429) errors.
@@ -92,5 +92,5 @@ def generate_recipe_image(title: str, description: str | None = None) -> bytes:
     """
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
-    prompt = _build_prompt(title, description)
+    prompt = _build_prompt(title, subtitle)
     return _call_api(client, prompt)

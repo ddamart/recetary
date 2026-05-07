@@ -40,10 +40,10 @@ export default function AddPage() {
   const twitterBlocked = source === "video" && isTwitterUrl(url) && backend !== "gemini";
 
   // Auto-generate image when draft is set
-  const generateImage = useCallback(async (title: string, description: string | null) => {
+  const generateImage = useCallback(async (title: string, subtitle: string | null) => {
     setImageLoading(true);
     try {
-      const blob = await api.generateImage(title, description);
+      const blob = await api.generateImage(title, subtitle);
       setImageBlob(blob);
     } catch {
       // Image generation is optional — don't block the flow
@@ -54,7 +54,7 @@ export default function AddPage() {
 
   useEffect(() => {
     if (draft) {
-      generateImage(draft.title, draft.description);
+      generateImage(draft.title, draft.subtitle);
     }
   }, [draft?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -121,7 +121,7 @@ export default function AddPage() {
         error={error}
         imageBlob={imageBlob}
         imageLoading={imageLoading}
-        onRegenerateImage={() => generateImage(draft.title, draft.description)}
+        onRegenerateImage={() => generateImage(draft.title, draft.subtitle)}
       />
     );
   }
