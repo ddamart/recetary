@@ -1,0 +1,31 @@
+{
+  "title": "¡Polpette! Albóndigas italianas con tomate y mozzarella",
+  "subtitle": "con patatas al horno",
+  "description": "Albóndigas italianas con salsa de tomate y mozzarella gratinada.",
+  "servings": 2,
+  "total_time_min": 30,
+  "cook_time_min": 20,
+  "difficulty": "easy",
+  "source_type": "manual",
+  "ingredients": [
+    {"name": "patata",            "category": "vegetable", "quantity_raw": "400 gramos"},
+    {"name": "queso mozzarella",  "category": "dairy",     "quantity_raw": "125 gramos"},
+    {"name": "carne picada",      "category": "protein",   "quantity_raw": "250 gramos"},
+    {"name": "mostaza",           "category": "sauce",     "quantity_raw": "1 sobre"},
+    {"name": "tomate triturado",  "category": "vegetable", "quantity_raw": "200 gramos"},
+    {"name": "espinacas",         "category": "vegetable", "quantity_raw": "1 unidad"},
+    {"name": "harina",            "category": "grain",     "quantity_raw": "1 gramos",     "is_pantry": true},
+    {"name": "ajo",               "category": "seasoning", "quantity_raw": "1 unidad",     "is_pantry": true},
+    {"name": "orégano",           "category": "seasoning", "quantity_raw": "1 cucharadita","is_pantry": true}
+  ],
+  "steps": [
+    {"title": "Hornea las patatas",    "text": "Precalienta el horno a 220ºC. Corta las patatas en gajos y hornea 20-25 min."},
+    {"title": "Forma las albóndigas",  "text": "Mezcla la carne picada con la harina, mostaza, sal y pimienta. Forma 5 albóndigas por persona."},
+    {"title": "Hornea las albóndigas", "text": "Coloca las albóndigas en una fuente y hornea 15 min."},
+    {"title": "Salsa de tomate",       "text": "Sofríe el ajo, añade tomate triturado, orégano, sal y pimienta. Cocina 3-4 min y agrega las espinacas."},
+    {"title": "Combina y gratina",     "text": "Añade salsa y mozzarella troceada sobre las albóndigas. Hornea 4-5 min más."},
+    {"title": "Emplata",               "text": "Sirve las patatas con las polpette. ¡Que aproveche!"}
+  ],
+  "utensils": ["fuente para horno", "bandeja con papel", "colador", "bol grande", "sartén con tapa"],
+  "tags": ["familia", "italiana"]
+}
