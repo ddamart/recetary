@@ -14,12 +14,12 @@ MODEL = "imagen-4.0-fast-generate-001"
 
 MAX_RETRIES = 3
 
-STYLE_PREFIX = "A warm Studio Ghibli-style watercolor food illustration of"
-STYLE_SUFFIX = (
-    "hand-painted with soft cel-shading, warm golden lighting, "
-    "beautifully plated on a rustic wooden table. "
-    "Cozy kitchen atmosphere inspired by Hayao Miyazaki films. "
-    "Detailed, appetizing, vibrant colors, no text or lettering."
+PROMPT_TEMPLATE = (
+    "Close-up food photography of {dish}, beautifully plated on a rustic ceramic dish. "
+    "Painted in a soft anime watercolor style with warm golden lighting and vibrant appetizing colors. "
+    "The focus is entirely on the food — no people, no characters, no animals, no scenery. "
+    "Detailed textures, steam rising, cozy kitchen background blurred out. "
+    "No text or lettering."
 )
 
 
@@ -41,8 +41,8 @@ def _get_api_key() -> str:
 def _build_prompt(title: str, description: str | None = None) -> str:
     dish = title
     if description:
-        dish = f"{title} — {description}"
-    return f"{STYLE_PREFIX} {dish}. {STYLE_SUFFIX}"
+        dish = f"{title} ({description})"
+    return PROMPT_TEMPLATE.format(dish=dish)
 
 
 def _call_api(client: genai.Client, prompt: str) -> bytes:
