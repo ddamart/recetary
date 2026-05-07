@@ -5,6 +5,7 @@ the same RecipeDraft interface as the Claude backend.
 """
 from __future__ import annotations
 
+import os
 import base64
 from typing import Iterable, Optional
 
@@ -19,13 +20,14 @@ from .common import (
     load_dotenv_once,
 )
 
-DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 class GeminiExtractor:
     def __init__(self, *, model: str = DEFAULT_MODEL) -> None:
         load_dotenv_once()
-        self.client = genai.Client()
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        self.client = genai.Client(api_key=api_key)
         self.model = model
 
     def _build_contents(
