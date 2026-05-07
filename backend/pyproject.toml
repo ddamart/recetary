@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recetary"
+version = "0.1.0"
+description = "Personal recipe book with AI-powered import and ingredient search"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "python-multipart>=0.0.9",
+    "anthropic>=0.40",
+    "pdfplumber>=0.11",
+    "trafilatura>=1.12",
+    "pillow>=10.4",
+    "httpx>=0.27",
+    "rapidfuzz>=3.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+recetary = "recetary.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["recetary*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
