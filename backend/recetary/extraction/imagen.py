@@ -54,6 +54,11 @@ def _build_prompt(title: str, subtitle: str | None = None) -> str:
     return PROMPT_TEMPLATE.format(dish=dish)
 
 
+def _is_daily_quota(exc: ClientError) -> bool:
+    """Check if the error is a daily quota exhaustion (not a transient rate limit)."""
+    return "per_day" in str(exc).lower() or "RESOURCE_EXHAUSTED" == getattr(exc, "status", "")
+
+
 def _parse_retry_seconds(exc: ClientError) -> int | None:
     """Extract retry delay in seconds from a Google API 429 error."""
     import re
@@ -76,12 +81,19 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
                 ),
             )
         except ClientError as e:
-            if e.status_code == 429 and attempt < MAX_RETRIES:
-                wait = 2 ** attempt * 10  # 10s, 20s, 40s
-                time.sleep(wait)
-                last_exc = e
-                continue
-            if e.status_code == 429:
+            if e.code == 429:
+                # Daily quota → don't retry, fail immediately
+                if _is_daily_quota(e):
+                    raise RateLimitError(
+                        "Límite diario de generación de imágenes alcanzado. "
+                        "Inténtalo mañana.",
+                    ) from e
+                # Per-minute rate limit → retry with backoff
+                if attempt < MAX_RETRIES:
+                    wait = 2 ** attempt * 10  # 10s, 20s, 40s
+                    time.sleep(wait)
+                    last_exc = e
+                    continue
                 last_exc = e
                 break
             raise ImageGenerationError(f"Image generation failed: {e}") from e

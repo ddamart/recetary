@@ -41,7 +41,7 @@ export default function EditRecipePage() {
       await api.uploadImage(id, blob);
     } catch (e: unknown) {
       if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
-        setError("Límite de generación de imágenes alcanzado. Espera un momento y prueba de nuevo.");
+        setError(e.message || "Límite de generación de imágenes alcanzado.");
       }
     } finally {
       setImageLoading(false);

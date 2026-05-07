@@ -84,8 +84,14 @@ export const api = {
       body: JSON.stringify({ title, subtitle }),
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new ApiError(res.status, text || res.statusText);
+      let detail = res.statusText;
+      try {
+        const body = await res.json();
+        if (body?.detail) detail = body.detail;
+      } catch {
+        // fall back to statusText
+      }
+      throw new ApiError(res.status, detail);
     }
     return res.blob();
   },

@@ -48,7 +48,7 @@ export default function AddPage() {
       setImageBlob(blob);
     } catch (e: unknown) {
       if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
-        setError("Límite de generación de imágenes alcanzado. Espera un momento y prueba de nuevo.");
+        setError(e.message || "Límite de generación de imágenes alcanzado.");
       }
       // Other image errors are non-blocking
     } finally {
