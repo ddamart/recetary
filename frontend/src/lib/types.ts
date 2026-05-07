@@ -26,7 +26,7 @@ export const DIFFICULTY_LABEL_ES: Record<Difficulty, string> = {
   hard: "Difícil",
 };
 
-export type SourceType = "pdf" | "image" | "text" | "url" | "manual";
+export type SourceType = "pdf" | "image" | "text" | "url" | "video" | "manual";
 
 export interface IngredientOut {
   id: number;

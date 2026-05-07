@@ -6,13 +6,14 @@ import { api } from "@/lib/api";
 import { RecipeForm } from "@/components/RecipeForm";
 import type { RecipeDraft } from "@/lib/types";
 
-type SourceKind = "pdf" | "image" | "text" | "url";
+type SourceKind = "pdf" | "image" | "text" | "url" | "video";
 
 const SOURCE_OPTIONS: { kind: SourceKind; label: string; icon: string; help: string }[] = [
   { kind: "pdf", label: "PDF", icon: "📄", help: "Sube un PDF (HelloFresh u otros)" },
   { kind: "image", label: "Imagen", icon: "🖼️", help: "Foto de una receta (PNG/JPG)" },
   { kind: "text", label: "Texto", icon: "✍️", help: "Pega o escribe la receta" },
   { kind: "url", label: "URL", icon: "🔗", help: "Enlace a artículo web" },
+  { kind: "video", label: "Vídeo", icon: "🎬", help: "YouTube o Instagram Reel" },
 ];
 
 export default function AddPage() {
@@ -59,7 +60,9 @@ export default function AddPage() {
         ...draft,
         source_type: source,
         source_ref:
-          source === "url" ? url : source === "text" ? null : file?.name ?? null,
+          source === "url" || source === "video"
+            ? url
+            : source === "text" ? null : file?.name ?? null,
         raw_text: source === "text" ? text : null,
       };
       const created = await api.createRecipe(payload);
@@ -90,12 +93,12 @@ export default function AddPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Nueva receta</h1>
         <p className="text-sm text-muted">
-          Elige el origen, Claude extraerá los ingredientes y los pasos, y revisas
+          Elige el origen, la IA extraerá los ingredientes y los pasos, y revisas
           antes de guardar.
         </p>
       </header>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {SOURCE_OPTIONS.map((opt) => (
           <button
             key={opt.kind}
@@ -153,6 +156,21 @@ export default function AddPage() {
               placeholder="https://..."
               className="border border-border rounded-md p-2 text-sm focus:border-accent outline-none"
             />
+          </label>
+        )}
+        {source === "video" && (
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="font-medium">URL del vídeo</span>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://youtube.com/watch?v=... o https://instagram.com/reel/..."
+              className="border border-border rounded-md p-2 text-sm focus:border-accent outline-none"
+            />
+            <span className="text-xs text-muted">
+              YouTube (subtítulos) e Instagram (texto del post)
+            </span>
           </label>
         )}
       </div>

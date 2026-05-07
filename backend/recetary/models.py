@@ -12,7 +12,7 @@ IngredientCategory = Literal[
 ]
 
 Difficulty = Literal["easy", "medium", "hard"]
-SourceType = Literal["pdf", "image", "text", "url", "manual"]
+SourceType = Literal["pdf", "image", "text", "url", "video", "manual"]
 
 
 class IngredientRef(BaseModel):

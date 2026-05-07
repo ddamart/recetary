@@ -5,8 +5,8 @@ the same RecipeDraft interface as the Claude backend.
 """
 from __future__ import annotations
 
+import json
 import os
-import base64
 from typing import Iterable, Optional
 
 from google import genai
@@ -68,6 +68,17 @@ class GeminiExtractor:
         parts.append(types.Part.from_text(text=prompt))
         return parts
 
+    def _parse_response(self, response) -> RecipeDraft:
+        if not response.text:
+            raise ExtractionError(
+                f"Gemini returned empty response (finish_reason={response.candidates[0].finish_reason!r})"
+            )
+        try:
+            data = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            raise ExtractionError(f"Gemini returned invalid JSON: {e}")
+        return RecipeDraft.model_validate(data)
+
     def extract(
         self,
         *,
@@ -104,16 +115,50 @@ class GeminiExtractor:
             ),
         )
 
-        if not response.text:
-            raise ExtractionError(
-                f"Gemini returned empty response (finish_reason={response.candidates[0].finish_reason!r})"
+        return self._parse_response(response)
+
+    def extract_video_url(
+        self,
+        *,
+        video_url: str,
+        transcript_text: Optional[str] = None,
+        canonical_ingredients: Iterable[str] = (),
+        max_tokens: int = 8192,
+    ) -> RecipeDraft:
+        """Extract a recipe directly from a YouTube video URL.
+
+        Gemini can process YouTube videos natively via Part.from_uri(),
+        seeing visual instructions and hearing spoken content.
+        """
+        preamble = build_canonical_preamble(canonical_ingredients)
+        parts: list[types.Part] = [types.Part.from_text(text=preamble)]
+
+        parts.append(types.Part.from_uri(uri=video_url, mime_type="video/*"))
+
+        if transcript_text:
+            parts.append(
+                types.Part.from_text(
+                    text=f"Video transcript (for reference):\n\n{transcript_text.strip()}"
+                )
             )
 
-        import json
+        parts.append(
+            types.Part.from_text(
+                text="Extract the recipe from the video above into the structured schema."
+            )
+        )
 
-        try:
-            data = json.loads(response.text)
-        except json.JSONDecodeError as e:
-            raise ExtractionError(f"Gemini returned invalid JSON: {e}")
+        schema = RecipeDraft.model_json_schema()
 
-        return RecipeDraft.model_validate(data)
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=[types.Content(role="user", parts=parts)],
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTIONS,
+                max_output_tokens=max_tokens,
+                response_mime_type="application/json",
+                response_schema=schema,
+            ),
+        )
+
+        return self._parse_response(response)

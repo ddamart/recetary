@@ -10,12 +10,14 @@ from . import db, repo
 from .extraction import (
     ExtractionError,
     RecipeDraft,
-    RecipeExtractor,
     draft_to_create,
+    get_extractor,
 )
 from .extraction import images as image_io
 from .extraction import pdf as pdf_io
 from .extraction import url as url_io
+from .extraction import video as video_io
+from .extraction.video import VideoExtractionError
 from .models import RecipeCreate, SourceType
 
 # Windows consoles default to cp1252; force UTF-8 so Spanish text renders.
@@ -84,7 +86,7 @@ def cmd_add_json(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_pdf(extractor: RecipeExtractor, pdf_path: Path) -> tuple[int, RecipeDraft]:
+def _run_pdf(extractor, pdf_path: Path) -> tuple[int, RecipeDraft]:
     pdf_bytes = pdf_io.read_bytes(pdf_path)
     draft = extractor.extract(
         canonical_ingredients=_canonical_ingredient_names(),
@@ -102,7 +104,7 @@ def _run_pdf(extractor: RecipeExtractor, pdf_path: Path) -> tuple[int, RecipeDra
 
 
 def cmd_add(args: argparse.Namespace) -> int:
-    extractor = RecipeExtractor()
+    extractor = get_extractor()
 
     if args.pdf:
         path = Path(args.pdf)
@@ -165,7 +167,31 @@ def cmd_add(args: argparse.Namespace) -> int:
         _print_summary(recipe_id, draft)
         return 0
 
-    print("add requires one of --pdf | --image | --text | --url", file=sys.stderr)
+    if args.video:
+        try:
+            content = video_io.fetch_video_content(args.video)
+        except VideoExtractionError as e:
+            print(f"Video extraction failed: {e}", file=sys.stderr)
+            return 2
+        draft = extractor.extract(
+            canonical_ingredients=_canonical_ingredient_names(),
+            text=content.text,
+            image_bytes=content.thumbnail_bytes,
+            image_media_type=content.thumbnail_media_type,
+            source_hint=content.source_url,
+        )
+        payload = draft_to_create(
+            draft,
+            source_type="video",
+            source_ref=content.source_url,
+            raw_text=content.text,
+        )
+        cover = content.thumbnail_bytes if content.thumbnail_bytes else None
+        recipe_id = _commit_recipe(payload, cover_png=cover)
+        _print_summary(recipe_id, draft)
+        return 0
+
+    print("add requires one of --pdf | --image | --text | --url | --video", file=sys.stderr)
     return 2
 
 
@@ -182,7 +208,7 @@ def cmd_import_pdfs(args: argparse.Namespace) -> int:
         print(f"No PDFs found in {folder}")
         return 0
 
-    extractor = RecipeExtractor()
+    extractor = get_extractor()
     print(f"Importing {len(pdfs)} PDF(s) from {folder}\n")
 
     succeeded = 0
@@ -257,6 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--image", metavar="PATH")
     group.add_argument("--text", metavar="PATH_OR_DASH")
     group.add_argument("--url", metavar="URL")
+    group.add_argument("--video", metavar="URL", help="YouTube or Instagram video URL")
     p_add.set_defaults(func=cmd_add)
 
     p_import = sub.add_parser("import-pdfs", help="Bulk-extract every PDF in a folder")
