@@ -20,6 +20,8 @@ export default function EditRecipePage() {
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageStyles, setImageStyles] = useState<{ id: string; label: string }[]>([]);
+  const [selectedStyle, setSelectedStyle] = useState("ghibli");
 
   useEffect(() => {
     api
@@ -30,14 +32,15 @@ export default function EditRecipePage() {
       })
       .catch(() => setError("No se pudo cargar la receta"))
       .finally(() => setLoading(false));
+    api.getImageStyles().then(setImageStyles).catch(() => {});
   }, [id]);
 
-  const regenerateImage = useCallback(async () => {
+  const regenerateImage = useCallback(async (style?: string) => {
     if (!draft) return;
     setImageLoading(true);
     setImageError(null);
     try {
-      const blob = await api.generateImage(draft.title, draft.subtitle);
+      const blob = await api.generateImage(draft.title, draft.subtitle, style);
       setImageBlob(blob);
       await api.uploadImage(id, blob);
     } catch (e: unknown) {
@@ -109,7 +112,10 @@ export default function EditRecipePage() {
       imageLoading={imageLoading}
       imageError={imageError}
       onDismissImageError={() => setImageError(null)}
-      onRegenerateImage={regenerateImage}
+      onRegenerateImage={() => regenerateImage(selectedStyle)}
+      imageStyles={imageStyles}
+      selectedStyle={selectedStyle}
+      onStyleChange={(s) => { setSelectedStyle(s); regenerateImage(s); }}
       extraActions={
         <button
           type="button"

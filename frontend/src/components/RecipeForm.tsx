@@ -26,6 +26,9 @@ export interface RecipeFormProps {
   imageLoading?: boolean;
   imageError?: string | null;
   onDismissImageError?: () => void;
+  imageStyles?: { id: string; label: string }[];
+  selectedStyle?: string;
+  onStyleChange?: (style: string) => void;
 }
 
 export function RecipeForm({
@@ -45,6 +48,9 @@ export function RecipeForm({
   imageLoading,
   imageError,
   onDismissImageError,
+  imageStyles,
+  selectedStyle,
+  onStyleChange,
 }: RecipeFormProps) {
   function patch(p: Partial<RecipeDraft>) {
     setDraft({ ...draft, ...p });
@@ -100,25 +106,46 @@ export function RecipeForm({
       </header>
 
       {/* Image preview */}
-      <div className="flex gap-4 items-start">
-        <div className="w-48 aspect-[4/3] rounded-xl overflow-hidden bg-zinc-100 border border-border shrink-0">
-          {previewUrl ? (
-            <img src={previewUrl} alt={draft.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl text-zinc-300">
-              🍽️
-            </div>
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-4 items-start">
+          <div className="w-48 aspect-[4/3] rounded-xl overflow-hidden bg-zinc-100 border border-border shrink-0">
+            {previewUrl ? (
+              <img src={previewUrl} alt={draft.title} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-4xl text-zinc-300">
+                🍽️
+              </div>
+            )}
+          </div>
+          {onRegenerateImage && (
+            <button
+              type="button"
+              onClick={onRegenerateImage}
+              disabled={imageLoading}
+              className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-accent text-muted hover:text-accent disabled:opacity-50"
+            >
+              {imageLoading ? "Generando..." : "Regenerar imagen"}
+            </button>
           )}
         </div>
-        {onRegenerateImage && (
-          <button
-            type="button"
-            onClick={onRegenerateImage}
-            disabled={imageLoading}
-            className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-accent text-muted hover:text-accent disabled:opacity-50"
-          >
-            {imageLoading ? "Generando..." : "Regenerar imagen"}
-          </button>
+        {imageStyles && imageStyles.length > 0 && onStyleChange && (
+          <div className="flex flex-wrap gap-1.5">
+            {imageStyles.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onStyleChange(s.id)}
+                disabled={imageLoading}
+                className={`text-xs px-2.5 py-1 rounded-full border transition disabled:opacity-50 ${
+                  selectedStyle === s.id
+                    ? "border-accent bg-accent text-white"
+                    : "border-border text-muted hover:border-accent/40"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

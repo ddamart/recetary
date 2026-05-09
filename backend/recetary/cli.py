@@ -293,7 +293,7 @@ def cmd_generate_images(args: argparse.Namespace) -> int:
             continue
 
         try:
-            png_bytes = generate_recipe_image(r.title)
+            png_bytes = generate_recipe_image(r.title, style=args.style)
         except ImageGenerationError as e:
             print(f"    ✗ generation failed: {e}")
             failed += 1
@@ -363,9 +363,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_list.add_argument("--limit", type=int, default=50)
     p_list.set_defaults(func=cmd_list)
 
-    p_gen = sub.add_parser("generate-images", help="Generate Ghibli-style cover images for recipes")
+    p_gen = sub.add_parser("generate-images", help="Generate cover images for recipes")
     p_gen.add_argument("--force", action="store_true", help="Regenerate even if image exists")
     p_gen.add_argument("--limit", type=int, default=0, help="Max recipes to process (0 = all)")
+    p_gen.add_argument("--style", default="ghibli", help="Image style (default: ghibli)")
     p_gen.set_defaults(func=cmd_generate_images)
 
     return parser

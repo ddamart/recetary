@@ -1,4 +1,4 @@
-"""Ghibli-style recipe image generation via Google Imagen."""
+"""Multi-style recipe image generation via Google Imagen."""
 from __future__ import annotations
 
 import os
@@ -14,10 +14,72 @@ MODEL = "imagen-4.0-fast-generate-001"
 
 MAX_RETRIES = 3
 
-PROMPT_TEMPLATE = (
+STYLES: dict[str, dict[str, str]] = {
+    "ghibli": {
+        "label": "Ghibli",
+        "prompt": (
+            "Pintado en estilo Studio Ghibli con acuarela anime suave, "
+            "iluminación cálida dorada y colores vibrantes y apetitosos."
+        ),
+    },
+    "realistic": {
+        "label": "Realista",
+        "prompt": (
+            "Fotografía profesional de revista gastronómica con iluminación "
+            "natural lateral, profundidad de campo reducida y colores naturales vibrantes."
+        ),
+    },
+    "watercolor": {
+        "label": "Acuarela clásica",
+        "prompt": (
+            "Ilustración en acuarela tradicional sobre papel texturizado con "
+            "trazos sueltos y visibles, paleta de colores cálidos y suaves, "
+            "estilo libro de cocina artesanal."
+        ),
+    },
+    "ukiyoe": {
+        "label": "Ukiyo-e",
+        "prompt": (
+            "Estilo ukiyo-e japonés tradicional con líneas elegantes definidas, "
+            "colores planos armoniosos y composición clásica de estampa japonesa."
+        ),
+    },
+    "popart": {
+        "label": "Pop Art",
+        "prompt": (
+            "Estilo pop art con colores planos llamativos y saturados, "
+            "contornos negros gruesos tipo cómic, tramas de puntos Ben-Day."
+        ),
+    },
+    "sketch": {
+        "label": "Boceto a lápiz",
+        "prompt": (
+            "Dibujo a lápiz detallado en blanco y negro con sombreado "
+            "clásico de cross-hatching, estilo boceto de artista sobre papel blanco."
+        ),
+    },
+    "minimal": {
+        "label": "Minimalista",
+        "prompt": (
+            "Estilo flat design minimalista con formas geométricas "
+            "simplificadas, colores pastel suaves y composición limpia sin texturas."
+        ),
+    },
+    "pixel": {
+        "label": "Pixel Art",
+        "prompt": (
+            "Estilo retro pixel art 16-bit con píxeles visibles, "
+            "paleta de colores limitada y vibrante, como un videojuego clásico."
+        ),
+    },
+}
+
+DEFAULT_STYLE = "ghibli"
+
+PROMPT_FRAME = (
     "Fotografía gastronómica en primer plano de {dish}, "
     "presentado en un plato de cerámica rústica. "
-    "Pintado en estilo Studio Ghibli con acuarela anime suave, iluminación cálida dorada y colores vibrantes y apetitosos. "
+    "{style_prompt} "
     "El foco está completamente en la comida — sin personas, sin personajes, sin animales, sin paisajes. "
     "Texturas detalladas, vapor ascendiendo, fondo de cocina acogedora desenfocado. "
     "Sin texto ni letras."
@@ -36,6 +98,11 @@ class RateLimitError(ImageGenerationError):
         self.retry_after = retry_after
 
 
+def get_available_styles() -> list[dict[str, str]]:
+    """Return the list of available image styles as {id, label} dicts."""
+    return [{"id": k, "label": v["label"]} for k, v in STYLES.items()]
+
+
 def _get_api_key() -> str:
     load_dotenv_once()
     key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
@@ -47,11 +114,12 @@ def _get_api_key() -> str:
     return key
 
 
-def _build_prompt(title: str, subtitle: str | None = None) -> str:
+def _build_prompt(title: str, subtitle: str | None = None, style: str = DEFAULT_STYLE) -> str:
     dish = title
     if subtitle:
         dish = f"{title} ({subtitle})"
-    return PROMPT_TEMPLATE.format(dish=dish)
+    style_prompt = STYLES.get(style, STYLES[DEFAULT_STYLE])["prompt"]
+    return PROMPT_FRAME.format(dish=dish, style_prompt=style_prompt)
 
 
 def _is_daily_quota(exc: ClientError) -> bool:
@@ -116,13 +184,15 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
     )
 
 
-def generate_recipe_image(title: str, subtitle: str | None = None) -> bytes:
-    """Generate a Ghibli-style PNG image for a recipe.
+def generate_recipe_image(
+    title: str, subtitle: str | None = None, style: str = DEFAULT_STYLE,
+) -> bytes:
+    """Generate a styled PNG image for a recipe.
 
     Returns raw PNG bytes. Retries on rate-limit (429) errors.
     Raises ImageGenerationError on failure.
     """
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
-    prompt = _build_prompt(title, subtitle)
+    prompt = _build_prompt(title, subtitle, style)
     return _call_api(client, prompt)

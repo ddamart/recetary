@@ -33,19 +33,22 @@ export default function AddPage() {
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageStyles, setImageStyles] = useState<{ id: string; label: string }[]>([]);
+  const [selectedStyle, setSelectedStyle] = useState("ghibli");
 
   useEffect(() => {
     api.getInfo().then((info) => setBackend(info.extractor_backend)).catch(() => {});
+    api.getImageStyles().then(setImageStyles).catch(() => {});
   }, []);
 
   const twitterBlocked = source === "video" && isTwitterUrl(url) && backend !== "gemini";
 
   // Auto-generate image when draft is set
-  const generateImage = useCallback(async (title: string, subtitle: string | null) => {
+  const generateImage = useCallback(async (title: string, subtitle: string | null, style?: string) => {
     setImageLoading(true);
     setImageError(null);
     try {
-      const blob = await api.generateImage(title, subtitle);
+      const blob = await api.generateImage(title, subtitle, style);
       setImageBlob(blob);
     } catch (e: unknown) {
       if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
@@ -58,7 +61,7 @@ export default function AddPage() {
 
   useEffect(() => {
     if (draft) {
-      generateImage(draft.title, draft.subtitle);
+      generateImage(draft.title, draft.subtitle, selectedStyle);
     }
   }, [draft?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -127,7 +130,10 @@ export default function AddPage() {
         imageLoading={imageLoading}
         imageError={imageError}
         onDismissImageError={() => setImageError(null)}
-        onRegenerateImage={() => generateImage(draft.title, draft.subtitle)}
+        onRegenerateImage={() => generateImage(draft.title, draft.subtitle, selectedStyle)}
+        imageStyles={imageStyles}
+        selectedStyle={selectedStyle}
+        onStyleChange={(s) => { setSelectedStyle(s); generateImage(draft.title, draft.subtitle, s); }}
       />
     );
   }
