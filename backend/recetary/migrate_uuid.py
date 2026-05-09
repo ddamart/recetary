@@ -36,7 +36,7 @@ def migrate(conn: sqlite3.Connection) -> None:
     old_rows = conn.execute("SELECT id FROM recipes").fetchall()
     id_map: dict[int, str] = {}
     for r in old_rows:
-        id_map[int(r["id"])] = uuid.uuid4().hex
+        id_map[int(r["id"])] = str(uuid.uuid4())
     print(f"  {len(id_map)} recipes to migrate")
 
     # --- Create new tables ------------------------------------------------

@@ -35,7 +35,7 @@ def upsert_ingredient(conn: sqlite3.Connection, name: str, category: str) -> int
 
 
 def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> str:
-    recipe_id = uuid.uuid4().hex
+    recipe_id = str(uuid.uuid4())
     conn.execute(
         """
         INSERT INTO recipes (
