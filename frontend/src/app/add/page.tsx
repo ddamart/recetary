@@ -43,12 +43,12 @@ export default function AddPage() {
 
   const twitterBlocked = source === "video" && isTwitterUrl(url) && backend !== "gemini";
 
-  // Auto-generate image when draft is set
-  const generateImage = useCallback(async (title: string, subtitle: string | null, description: string | null, style?: string) => {
+  const generateImage = useCallback(async (style: string) => {
+    if (!draft) return;
     setImageLoading(true);
     setImageError(null);
     try {
-      const blob = await api.generateImage(title, subtitle, description, style);
+      const blob = await api.generateImage(draft.title, draft.subtitle, draft.description, style);
       setImageBlob(blob);
     } catch (e: unknown) {
       if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
@@ -57,13 +57,7 @@ export default function AddPage() {
     } finally {
       setImageLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    if (draft) {
-      generateImage(draft.title, draft.subtitle, draft.description, selectedStyle);
-    }
-  }, [draft?.title]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draft]);
 
   async function extract() {
     setError(null);
@@ -133,7 +127,8 @@ export default function AddPage() {
         onDismissImageError={() => setImageError(null)}
         imageStyles={imageStyles}
         selectedStyle={selectedStyle}
-        onStyleChange={(s) => { setSelectedStyle(s); generateImage(draft.title, draft.subtitle, draft.description, s); }}
+        onStyleSelect={(s) => setSelectedStyle(s)}
+        onGenerateImage={(s) => generateImage(s)}
       />
     );
   }

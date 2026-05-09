@@ -114,7 +114,8 @@ export default function EditRecipePage() {
       onDismissImageError={() => setImageError(null)}
       imageStyles={imageStyles}
       selectedStyle={selectedStyle}
-      onStyleChange={(s) => { setSelectedStyle(s); regenerateImage(s); }}
+      onStyleSelect={(s) => setSelectedStyle(s)}
+      onGenerateImage={(s) => regenerateImage(s)}
       extraActions={
         <button
           type="button"

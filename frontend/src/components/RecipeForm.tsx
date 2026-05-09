@@ -27,7 +27,8 @@ export interface RecipeFormProps {
   onDismissImageError?: () => void;
   imageStyles?: { id: string; label: string }[];
   selectedStyle?: string;
-  onStyleChange?: (style: string) => void;
+  onStyleSelect?: (style: string) => void;
+  onGenerateImage?: (style: string) => void;
 }
 
 export function RecipeForm({
@@ -48,7 +49,8 @@ export function RecipeForm({
   onDismissImageError,
   imageStyles,
   selectedStyle,
-  onStyleChange,
+  onStyleSelect,
+  onGenerateImage,
 }: RecipeFormProps) {
   function patch(p: Partial<RecipeDraft>) {
     setDraft({ ...draft, ...p });
@@ -114,23 +116,32 @@ export function RecipeForm({
             </div>
           )}
         </div>
-        {imageStyles && imageStyles.length > 0 && onStyleChange && (
-          <div className="flex flex-wrap gap-1.5">
-            {imageStyles.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => onStyleChange(s.id)}
-                disabled={imageLoading}
-                className={`text-xs px-2.5 py-1 rounded-full border transition disabled:opacity-50 ${
-                  selectedStyle === s.id
-                    ? "border-accent bg-accent text-white"
-                    : "border-border text-muted hover:border-accent/40"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
+        {imageStyles && imageStyles.length > 0 && onStyleSelect && onGenerateImage && (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {imageStyles.map((s) => (
+                <label key={s.id} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="image-style"
+                    value={s.id}
+                    checked={selectedStyle === s.id}
+                    onChange={() => onStyleSelect(s.id)}
+                    disabled={imageLoading}
+                    className="accent-accent"
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => onGenerateImage(selectedStyle ?? imageStyles[0].id)}
+              disabled={imageLoading || !selectedStyle}
+              className="self-start px-4 py-1.5 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-50 hover:opacity-90"
+            >
+              {previewUrl ? "Regenerar imagen" : "Generar imagen"}
+            </button>
           </div>
         )}
       </div>
