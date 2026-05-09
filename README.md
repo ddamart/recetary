@@ -102,18 +102,30 @@ translation + style frame) is shared — only the final image generation differs
 ### Local FLUX server (optional)
 
 Only needed when `IMAGE_BACKEND=local`. Runs FLUX Schnell on your GPU.
+Requires an NVIDIA GPU with ≥16 GB VRAM (tested on RTX 4080 SUPER).
+
+**One-time setup:**
 
 ```powershell
-# Install heavy ML deps (separate from main backend)
-.\.venv\Scripts\pip.exe install -r backend/requirements-flux.txt
+# 1. Install ML deps with CUDA support (CPU-only torch will NOT work)
+.\.venv\Scripts\pip.exe install -r backend/requirements-flux.txt --extra-index-url https://download.pytorch.org/whl/cu126
 
-# Start the server (loads model on startup, ~30s first time)
+# 2. Accept the FLUX Schnell license (instant approval)
+#    Visit https://huggingface.co/black-forest-labs/FLUX.1-schnell
+#    and click "Agree and access repository"
+
+# 3. Log in so the model can be downloaded (~12 GB, cached after first run)
+.\.venv\Scripts\huggingface-cli.exe login
+```
+
+**Running:** The dev scripts (`dev.ps1` / `dev.sh`) auto-start the FLUX server
+when `IMAGE_BACKEND=local` is set in `.env`. To run it manually:
+
+```powershell
 .\.venv\Scripts\python.exe backend/flux_server.py
-# or: uvicorn flux_server:app --port 8500 --app-dir backend
 ```
 
 Defaults to `http://localhost:8500`. Override with `LOCAL_FLUX_URL` env var.
-Requires an NVIDIA GPU with ≥16 GB VRAM (tested on RTX 4080 SUPER).
 
 ## Tests
 

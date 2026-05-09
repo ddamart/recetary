@@ -3,10 +3,15 @@
 # the FLUX server, not on the main backend.
 #
 # Install with:
-#   pip install -r requirements-flux.txt
+#   pip install -r requirements-flux.txt --extra-index-url https://download.pytorch.org/whl/cu126
 #
-# For CUDA 12.6 (RTX 4080 SUPER):
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+# The --extra-index-url flag ensures torch/torchvision pull the CUDA 12.6
+# build (required — the default CPU-only build will NOT work).
+#
+# You also need to accept the FLUX Schnell license on Hugging Face and log in:
+#   1. Visit https://huggingface.co/black-forest-labs/FLUX.1-schnell
+#      and click "Agree and access repository"
+#   2. Run: huggingface-cli login
 
 torch
 torchvision
