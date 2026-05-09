@@ -16,7 +16,7 @@ if (-not (Test-Path .venv\Scripts\python.exe)) {
 if (-not (Test-Path frontend\node_modules)) {
     Write-Host "Installing frontend dependencies..." -ForegroundColor Yellow
     Push-Location frontend
-    npm install
+    npm.cmd install
     Pop-Location
 }
 if (-not (Test-Path data\recetary.db)) {
@@ -25,15 +25,34 @@ if (-not (Test-Path data\recetary.db)) {
 }
 
 $backendCmd = ".\.venv\Scripts\python.exe -m uvicorn recetary.main:app --reload --app-dir backend --port 8000"
-$frontendCmd = "Set-Location frontend ; npm run dev"
+$frontendCmd = "Set-Location frontend ; npm.cmd run dev"
+
+# Read IMAGE_BACKEND from .env (same file the Python backend reads)
+$imageBackend = "imagen"
+if (Test-Path .env) {
+    $match = Select-String -Path .env -Pattern '^\s*IMAGE_BACKEND\s*=\s*(.+)' | Select-Object -First 1
+    if ($match) {
+        $imageBackend = $match.Matches.Groups[1].Value.Trim().Trim('"').Trim("'").ToLower()
+    }
+}
 
 Write-Host ""
 Write-Host "Starting backend  -> http://localhost:8000  (docs at /docs)" -ForegroundColor Green
 Write-Host "Starting frontend -> http://localhost:3000" -ForegroundColor Green
+if ($imageBackend -eq "local") {
+    Write-Host "Starting FLUX server -> http://localhost:8500" -ForegroundColor Green
+}
 Write-Host ""
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot' ; $backendCmd"
 Start-Sleep -Seconds 1
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot' ; $frontendCmd"
 
-Write-Host "Two terminal windows opened. Close them or press Ctrl+C inside each to stop." -ForegroundColor Cyan
+if ($imageBackend -eq "local") {
+    $fluxCmd = ".\.venv\Scripts\python.exe backend\flux_server.py"
+    Start-Sleep -Seconds 1
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot' ; $fluxCmd"
+}
+
+$windowCount = if ($imageBackend -eq "local") { "Three" } else { "Two" }
+Write-Host "$windowCount terminal windows opened. Close them or press Ctrl+C inside each to stop." -ForegroundColor Cyan
