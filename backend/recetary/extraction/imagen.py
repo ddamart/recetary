@@ -6,6 +6,7 @@ The actual image generation is dispatched to the backend selected by the
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 
@@ -14,6 +15,8 @@ from google.genai import types
 from google.genai.errors import ClientError
 
 from .common import load_dotenv_once
+
+logger = logging.getLogger(__name__)
 
 MODEL = "imagen-4.0-fast-generate-001"
 
@@ -156,8 +159,13 @@ def _translate_dish(
             contents=contents,
         )
         translated = response.text.strip()
-        return translated if translated else title
-    except Exception:
+        if translated:
+            logger.info("Dish translation: %r -> %r", title, translated)
+            return translated
+        logger.warning("Gemini returned empty translation for %r, using title as-is", title)
+        return title
+    except Exception as exc:
+        logger.warning("Dish translation failed for %r: %s — using title as-is", title, exc)
         return title
 
 
