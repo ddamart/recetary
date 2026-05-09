@@ -7,7 +7,7 @@ recipe picker, and AI-powered import from PDF, image, plain text, and web URLs.
 
 - **Backend:** Python 3.10+ / FastAPI / SQLite (FTS5) / rapidfuzz
 - **Frontend:** Next.js 16 / React 19 / Tailwind v4
-- **AI:** Anthropic Claude (`claude-sonnet-4-6`) for structured extraction
+- **AI:** Pluggable LLM and image generation backends (see below)
 
 ## One-shot dev startup
 
@@ -64,10 +64,56 @@ PUT  /recipes/{id}
 DELETE /recipes/{id}
 GET  /recipes/random         ?ingredients=&tag=
 POST /recipes/extract        Multipart: source_type + file/text/url → RecipeDraft
+POST /recipes/generate-image Generate a styled cover image for a recipe
+GET  /info                   Returns active extractor and image backends
 GET  /search                 ?q=&ingredients=&tag=&limit=&offset=
 GET  /ingredients            ?q=
+GET  /image-styles           Available image style presets
 GET  /static/images/{name}   Recipe cover images
 ```
+
+## AI backends
+
+Controlled via environment variables in `.env` (see `.env.example`).
+
+### Recipe extraction (`EXTRACTOR_BACKEND`)
+
+Parses recipes from PDF, image, plain text, URL, and video sources.
+
+| Value    | Provider        | Required env var      | Notes                          |
+|----------|-----------------|-----------------------|--------------------------------|
+| `claude` | Anthropic Claude (default) | `ANTHROPIC_API_KEY` | All source types               |
+| `gemini` | Google Gemini   | `GOOGLE_API_KEY`      | All source types; required for Twitter/X video |
+
+### Image generation (`IMAGE_BACKEND`)
+
+Generates styled cover images for recipes. The prompt pipeline (Gemini Flash
+translation + style frame) is shared — only the final image generation differs.
+
+| Value     | Provider            | Required env var      | Cost              |
+|-----------|---------------------|-----------------------|-------------------|
+| `imagen`  | Google Imagen (default) | `GOOGLE_API_KEY`  | ~70/day free, then $0.03/img |
+| `together`| Together AI (FLUX Schnell) | `TOGETHER_API_KEY` | $0.003/img       |
+| `local`   | Local FLUX Schnell  | (none)                | Free (your GPU)   |
+
+**Note:** `imagen` and `together` are cloud APIs — no extra server needed.
+`local` requires running `flux_server.py` as a separate process (see below).
+
+### Local FLUX server (optional)
+
+Only needed when `IMAGE_BACKEND=local`. Runs FLUX Schnell on your GPU.
+
+```powershell
+# Install heavy ML deps (separate from main backend)
+.\.venv\Scripts\pip.exe install -r backend/requirements-flux.txt
+
+# Start the server (loads model on startup, ~30s first time)
+.\.venv\Scripts\python.exe backend/flux_server.py
+# or: uvicorn flux_server:app --port 8500 --app-dir backend
+```
+
+Defaults to `http://localhost:8500`. Override with `LOCAL_FLUX_URL` env var.
+Requires an NVIDIA GPU with ≥16 GB VRAM (tested on RTX 4080 SUPER).
 
 ## Tests
 
@@ -81,5 +127,5 @@ GET  /static/images/{name}   Recipe cover images
 - User-facing recipe content (titles, ingredient names, steps, tags) is Spanish.
 - `data/recetary.db` is gitignored. So are `raw_pdfs/` and `raw_imgs/` — the
   seed corpus stays local. Switch to git-lfs if you want to version it.
-- `.env` holds `ANTHROPIC_API_KEY` and is gitignored. `.env.example` is the
-  template.
+- `.env` holds API keys and backend selection and is gitignored. `.env.example`
+  is the template — see also `backend/.env.example` for the full list.
