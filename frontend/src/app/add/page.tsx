@@ -131,7 +131,6 @@ export default function AddPage() {
         imageLoading={imageLoading}
         imageError={imageError}
         onDismissImageError={() => setImageError(null)}
-        onRegenerateImage={() => generateImage(draft.title, draft.subtitle, draft.description, selectedStyle)}
         imageStyles={imageStyles}
         selectedStyle={selectedStyle}
         onStyleChange={(s) => { setSelectedStyle(s); generateImage(draft.title, draft.subtitle, draft.description, s); }}

@@ -112,7 +112,6 @@ export default function EditRecipePage() {
       imageLoading={imageLoading}
       imageError={imageError}
       onDismissImageError={() => setImageError(null)}
-      onRegenerateImage={() => regenerateImage(selectedStyle)}
       imageStyles={imageStyles}
       selectedStyle={selectedStyle}
       onStyleChange={(s) => { setSelectedStyle(s); regenerateImage(s); }}
