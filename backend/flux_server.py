@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 import torch
@@ -27,6 +28,7 @@ logging.basicConfig(level=logging.INFO)
 MODEL_ID = "black-forest-labs/FLUX.1-schnell"
 
 pipe: FluxPipeline | None = None
+_generate_lock = threading.Lock()
 
 
 @asynccontextmanager
@@ -73,19 +75,27 @@ def generate(req: GenerateRequest):
     if pipe is None:
         raise HTTPException(503, "Model not loaded yet")
 
-    logger.info("Generating image: %s", req.prompt[:200])
-    image = pipe(
-        prompt=req.prompt,
-        width=req.width,
-        height=req.height,
-        num_inference_steps=req.num_inference_steps,
-        guidance_scale=0.0,
-    ).images[0]
+    # Serialize requests — the pipeline is not thread-safe and the GPU
+    # can only run one generation at a time anyway.
+    if not _generate_lock.acquire(blocking=False):
+        raise HTTPException(429, "Generation already in progress, try again shortly")
 
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    buf.seek(0)
-    return Response(content=buf.getvalue(), media_type="image/png")
+    try:
+        logger.info("Generating image: %s", req.prompt[:200])
+        image = pipe(
+            prompt=req.prompt,
+            width=req.width,
+            height=req.height,
+            num_inference_steps=req.num_inference_steps,
+            guidance_scale=0.0,
+        ).images[0]
+
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        buf.seek(0)
+        return Response(content=buf.getvalue(), media_type="image/png")
+    finally:
+        _generate_lock.release()
 
 
 if __name__ == "__main__":
