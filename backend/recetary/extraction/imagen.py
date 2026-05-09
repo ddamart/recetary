@@ -67,13 +67,11 @@ STYLES: dict[str, dict[str, str]] = {
 DEFAULT_STYLE = "ghibli"
 
 PROMPT_FRAME = (
-    "Close-up food photography of {dish}, "
-    "served on a rustic ceramic plate. "
+    "Close-up food photo, no text, no words, no watermarks. "
+    "{dish} on a rustic ceramic plate. "
     "{style_prompt} "
-    "Focus entirely on the food — no people, no characters, no animals, no landscapes. "
-    "Detailed textures, steam rising, cozy blurred kitchen background. "
-    "IMPORTANT: the image must NOT contain any text, letters, words, numbers, "
-    "watermarks or typography of any kind."
+    "Only food, no people or animals. "
+    "Detailed textures, steam, cozy blurred kitchen background."
 )
 
 

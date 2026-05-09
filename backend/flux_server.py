@@ -56,7 +56,7 @@ def generate(req: GenerateRequest):
     if pipe is None:
         raise HTTPException(503, "Model not loaded yet")
 
-    logger.info("Generating image: %s", req.prompt[:80])
+    logger.info("Generating image: %s", req.prompt[:200])
     image = pipe(
         prompt=req.prompt,
         width=req.width,
