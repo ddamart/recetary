@@ -169,9 +169,6 @@ def _translate_dish(
             "Reply ONLY with the description.\n\n"
             f"{dish_text}"
         )
-            "Reply ONLY with the description.\n\n"
-            f"{dish_text}"
-        )
 
     try:
         response = client.models.generate_content(
