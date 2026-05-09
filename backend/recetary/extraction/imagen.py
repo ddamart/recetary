@@ -89,6 +89,9 @@ def get_available_styles() -> list[dict[str, str]]:
     return [{"id": k, "label": v["label"]} for k, v in STYLES.items()]
 
 
+TRANSLATE_MODEL = "gemini-2.0-flash"
+
+
 def _get_api_key() -> str:
     load_dotenv_once()
     key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
@@ -100,12 +103,30 @@ def _get_api_key() -> str:
     return key
 
 
-def _build_prompt(title: str, subtitle: str | None = None, style: str = DEFAULT_STYLE) -> str:
+def _translate_dish(client: genai.Client, dish: str) -> str:
+    """Translate a Spanish dish name to English for better Imagen comprehension."""
+    try:
+        response = client.models.generate_content(
+            model=TRANSLATE_MODEL,
+            contents=(
+                "Translate this Spanish dish name to English. "
+                "Reply ONLY with the English translation, nothing else.\n\n"
+                f"{dish}"
+            ),
+        )
+        translated = response.text.strip()
+        return translated if translated else dish
+    except Exception:
+        return dish
+
+
+def _build_prompt(client: genai.Client, title: str, subtitle: str | None = None, style: str = DEFAULT_STYLE) -> str:
     dish = title
     if subtitle:
         dish = f"{title} ({subtitle})"
+    dish_en = _translate_dish(client, dish)
     style_prompt = STYLES.get(style, STYLES[DEFAULT_STYLE])["prompt"]
-    return PROMPT_FRAME.format(dish=dish, style_prompt=style_prompt)
+    return PROMPT_FRAME.format(dish=dish_en, style_prompt=style_prompt)
 
 
 def _is_daily_quota(exc: ClientError) -> bool:
@@ -180,5 +201,5 @@ def generate_recipe_image(
     """
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
-    prompt = _build_prompt(title, subtitle, style)
+    prompt = _build_prompt(client, title, subtitle, style)
     return _call_api(client, prompt)
