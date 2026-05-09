@@ -37,25 +37,11 @@ STYLES: dict[str, dict[str, str]] = {
             "estilo libro de cocina artesanal."
         ),
     },
-    "ukiyoe": {
-        "label": "Ukiyo-e",
-        "prompt": (
-            "Estilo ukiyo-e japonés tradicional con líneas elegantes definidas, "
-            "colores planos armoniosos y composición clásica de estampa japonesa."
-        ),
-    },
     "popart": {
         "label": "Pop Art",
         "prompt": (
             "Estilo pop art con colores planos llamativos y saturados, "
             "contornos negros gruesos tipo cómic, tramas de puntos Ben-Day."
-        ),
-    },
-    "sketch": {
-        "label": "Boceto a lápiz",
-        "prompt": (
-            "Dibujo a lápiz detallado en blanco y negro con sombreado "
-            "clásico de cross-hatching, estilo boceto de artista sobre papel blanco."
         ),
     },
     "minimal": {
@@ -82,7 +68,8 @@ PROMPT_FRAME = (
     "{style_prompt} "
     "El foco está completamente en la comida — sin personas, sin personajes, sin animales, sin paisajes. "
     "Texturas detalladas, vapor ascendiendo, fondo de cocina acogedora desenfocado. "
-    "Sin texto ni letras."
+    "IMPORTANTE: la imagen NO debe contener texto, letras, palabras, números, "
+    "marcas de agua ni tipografía de ningún tipo."
 )
 
 
