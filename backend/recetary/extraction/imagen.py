@@ -25,56 +25,36 @@ MAX_RETRIES = 3
 STYLES: dict[str, dict[str, str]] = {
     "ghibli": {
         "label": "Ghibli",
-        "prompt": (
-            "Painted in Studio Ghibli style with soft anime watercolor, "
-            "warm golden lighting and vibrant appetizing colors."
-        ),
+        "prompt": "Studio Ghibli anime watercolor, warm golden light, vibrant colors.",
     },
     "realistic": {
         "label": "Realista",
-        "prompt": (
-            "Professional food magazine photography with natural side lighting, "
-            "shallow depth of field and vibrant natural colors."
-        ),
+        "prompt": "Food magazine photo, natural side lighting, shallow depth of field.",
     },
     "watercolor": {
         "label": "Acuarela clásica",
-        "prompt": (
-            "Traditional watercolor illustration on textured paper with loose "
-            "visible brushstrokes, warm soft color palette, artisan cookbook style."
-        ),
+        "prompt": "Watercolor illustration, textured paper, loose brushstrokes, warm palette.",
     },
     "popart": {
         "label": "Pop Art",
-        "prompt": (
-            "Pop art style with bold saturated flat colors, thick black comic-book "
-            "outlines, Ben-Day dot patterns."
-        ),
+        "prompt": "Pop art, bold flat colors, thick black outlines, Ben-Day dots.",
     },
     "minimal": {
         "label": "Minimalista",
-        "prompt": (
-            "Minimalist flat design with simplified geometric shapes, "
-            "soft pastel colors and clean composition without textures."
-        ),
+        "prompt": "Minimalist flat design, geometric shapes, soft pastels, clean composition.",
     },
     "pixel": {
         "label": "Pixel Art",
-        "prompt": (
-            "Retro 16-bit pixel art style with visible pixels, "
-            "limited vibrant color palette, like a classic video game."
-        ),
+        "prompt": "16-bit pixel art, visible pixels, limited vibrant palette, retro game style.",
     },
 }
 
 DEFAULT_STYLE = "ghibli"
 
 PROMPT_FRAME = (
-    "Close-up food photo, no text, no words, no watermarks. "
-    "{dish} on a rustic ceramic plate. "
+    "No text, no watermarks. Close-up of {dish}. "
     "{style_prompt} "
-    "Only food, no people or animals. "
-    "Detailed textures, steam, cozy blurred kitchen background."
+    "Only food, steam rising, blurred background."
 )
 
 
@@ -132,11 +112,10 @@ def _translate_dish(
     if reference_image_bytes and reference_mime_type:
         prompt_text = (
             "Look at this photo of the dish and the Spanish recipe info below. "
-            "Write a short English description (max 25 words) of what the finished "
-            "dish looks like on a plate. Describe the visual appearance: colors, "
-            "textures, shapes, and how it is plated. Use common English food terms "
-            "an image generator would understand — avoid ambiguous foreign words. "
-            "Reply ONLY with the description.\n\n"
+            "Write a short English description (max 15 words) of what the finished "
+            "dish looks like on a plate. Describe colors, textures, and plating. "
+            "Use common English food terms an image generator would understand — "
+            "avoid ambiguous foreign words. Reply ONLY with the description.\n\n"
             f"{dish_text}"
         )
         contents = [
@@ -145,9 +124,9 @@ def _translate_dish(
         ]
     else:
         contents = (
-            "Given this Spanish recipe info, write a short English description (max 25 words) "
-            "of what the finished dish looks like on a plate. Describe the visual appearance: "
-            "colors, textures, shapes, and how it is plated. Use common English food terms "
+            "Given this Spanish recipe info, write a short English description "
+            "(max 15 words) of what the finished dish looks like on a plate. "
+            "Describe colors, textures, and plating. Use common English food terms "
             "an image generator would understand — avoid ambiguous foreign words. "
             "Reply ONLY with the description.\n\n"
             f"{dish_text}"
