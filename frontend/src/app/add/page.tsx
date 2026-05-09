@@ -95,13 +95,14 @@ export default function AddPage() {
     setError(null);
     setBusy(true);
     try {
+      const autoRef =
+        source === "url" || source === "video"
+          ? url
+          : source === "text" ? null : file?.name ?? null;
       const payload = {
         ...draft,
         source_type: source,
-        source_ref:
-          source === "url" || source === "video"
-            ? url
-            : source === "text" ? null : file?.name ?? null,
+        source_ref: draft.source_ref ?? autoRef,
         raw_text: source === "text" ? text : null,
       };
       const created = await api.createRecipe(payload);

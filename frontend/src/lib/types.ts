@@ -52,7 +52,7 @@ export interface Step {
 }
 
 export interface Recipe {
-  id: number;
+  id: string;
   title: string;
   subtitle: string | null;
   description: string | null;
@@ -71,7 +71,7 @@ export interface Recipe {
 }
 
 export interface RecipeSummary {
-  id: number;
+  id: string;
   title: string;
   subtitle: string | null;
   image_path: string | null;
@@ -109,6 +109,7 @@ export interface RecipeDraft {
   total_time_min: number | null;
   cook_time_min: number | null;
   difficulty: Difficulty | null;
+  source_ref: string | null;
   ingredients: IngredientDraft[];
   steps: StepDraft[];
   utensils: string[];

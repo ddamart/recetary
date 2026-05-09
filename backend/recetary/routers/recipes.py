@@ -84,7 +84,7 @@ async def generate_image(payload: ImageGenerateRequest) -> Response:
 
 @router.post("/{recipe_id}/image")
 async def upload_recipe_image(
-    recipe_id: int,
+    recipe_id: str,
     file: UploadFile = File(...),
 ) -> dict[str, str]:
     """Upload/replace the cover image for a recipe."""
@@ -107,7 +107,7 @@ async def upload_recipe_image(
 
 
 @router.get("/{recipe_id}", response_model=Recipe)
-def get_recipe(recipe_id: int) -> Recipe:
+def get_recipe(recipe_id: str) -> Recipe:
     with db.get_conn() as conn:
         recipe = repo.get_recipe(conn, recipe_id)
     if not recipe:
@@ -116,7 +116,7 @@ def get_recipe(recipe_id: int) -> Recipe:
 
 
 @router.put("/{recipe_id}", response_model=Recipe)
-def update_recipe(recipe_id: int, payload: RecipeCreate) -> Recipe:
+def update_recipe(recipe_id: str, payload: RecipeCreate) -> Recipe:
     with db.get_conn() as conn:
         updated = repo.update_recipe(conn, recipe_id, payload)
     if not updated:
@@ -125,7 +125,7 @@ def update_recipe(recipe_id: int, payload: RecipeCreate) -> Recipe:
 
 
 @router.delete("/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_recipe(recipe_id: int) -> None:
+def delete_recipe(recipe_id: str) -> None:
     with db.get_conn() as conn:
         ok = repo.delete_recipe(conn, recipe_id)
     if not ok:

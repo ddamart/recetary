@@ -10,6 +10,7 @@ export function recipeToDraft(recipe: Recipe): RecipeDraft {
     total_time_min: recipe.total_time_min,
     cook_time_min: recipe.cook_time_min,
     difficulty: recipe.difficulty,
+    source_ref: recipe.source_ref,
     ingredients: recipe.ingredients.map((ri) => ({
       name: ri.ingredient.name,
       category: ri.ingredient.category,

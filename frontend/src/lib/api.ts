@@ -44,9 +44,9 @@ export const api = {
     const q = qs.toString();
     return request<RecipeSummary[]>(`/recipes${q ? `?${q}` : ""}`);
   },
-  getRecipe: (id: number | string) =>
+  getRecipe: (id: string) =>
     request<Recipe>(`/recipes/${id}`),
-  deleteRecipe: (id: number) =>
+  deleteRecipe: (id: string) =>
     request<void>(`/recipes/${id}`, { method: "DELETE" }),
   randomRecipe: (params?: { ingredients?: string[]; tag?: string }) => {
     const qs = new URLSearchParams();
@@ -96,7 +96,7 @@ export const api = {
     }
     return res.blob();
   },
-  uploadImage: async (recipeId: number, blob: Blob): Promise<{ image_path: string }> => {
+  uploadImage: async (recipeId: string, blob: Blob): Promise<{ image_path: string }> => {
     const form = new FormData();
     form.append("file", blob, `${recipeId}.png`);
     return request<{ image_path: string }>(`/recipes/${recipeId}/image`, {
@@ -109,7 +109,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  updateRecipe: (id: number, payload: unknown) =>
+  updateRecipe: (id: string, payload: unknown) =>
     request<Recipe>(`/recipes/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),

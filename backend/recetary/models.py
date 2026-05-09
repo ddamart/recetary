@@ -80,7 +80,7 @@ class RecipeCreate(BaseModel):
 
 
 class RecipeSummary(BaseModel):
-    id: int
+    id: str
     title: str
     subtitle: Optional[str]
     image_path: Optional[str]
@@ -98,7 +98,7 @@ class RecipeMatch(RecipeSummary):
 
 
 class Recipe(BaseModel):
-    id: int
+    id: str
     title: str
     subtitle: Optional[str]
     description: Optional[str]

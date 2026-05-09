@@ -10,7 +10,7 @@ import type { Recipe, RecipeDraft } from "@/lib/types";
 export default function EditRecipePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const id = Number(params.id);
+  const id = params.id;
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
@@ -60,7 +60,7 @@ export default function EditRecipePage() {
       const payload = {
         ...draft,
         source_type: recipe.source_type,
-        source_ref: recipe.source_ref,
+        source_ref: draft.source_ref,
         raw_text: null,
         image_path: recipe.image_path,
       };

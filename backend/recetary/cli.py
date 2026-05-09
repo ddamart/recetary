@@ -36,7 +36,7 @@ def _canonical_ingredient_names() -> list[str]:
     return [r["name"] for r in rows]
 
 
-def _save_cover_image(recipe_id: int, image_bytes: bytes, ext: str = "png") -> str:
+def _save_cover_image(recipe_id: str, image_bytes: bytes, ext: str = "png") -> str:
     """Save a recipe's cover image under data/images/ and return the filename
     (relative to the /static/images mount the API exposes)."""
     images_dir = db.REPO_ROOT / "data" / "images"
@@ -46,7 +46,7 @@ def _save_cover_image(recipe_id: int, image_bytes: bytes, ext: str = "png") -> s
     return filename
 
 
-def _commit_recipe(payload: RecipeCreate, *, cover_png: Optional[bytes] = None) -> int:
+def _commit_recipe(payload: RecipeCreate, *, cover_png: Optional[bytes] = None) -> str:
     with db.get_conn() as conn:
         recipe_id = repo.create_recipe(conn, payload)
     if cover_png:
@@ -58,7 +58,7 @@ def _commit_recipe(payload: RecipeCreate, *, cover_png: Optional[bytes] = None) 
     return recipe_id
 
 
-def _print_summary(recipe_id: int, draft: RecipeDraft) -> None:
+def _print_summary(recipe_id: str, draft: RecipeDraft) -> None:
     print(f"  ✓ id={recipe_id}  {draft.title}")
     print(
         f"    {len(draft.ingredients)} ingredientes, "
@@ -86,7 +86,7 @@ def cmd_add_json(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_pdf(extractor, pdf_path: Path) -> tuple[int, RecipeDraft]:
+def _run_pdf(extractor, pdf_path: Path) -> tuple[str, RecipeDraft]:
     pdf_bytes = pdf_io.read_bytes(pdf_path)
     draft = extractor.extract(
         canonical_ingredients=_canonical_ingredient_names(),
@@ -258,12 +258,12 @@ def cmd_import_pdfs(args: argparse.Namespace) -> int:
     return 0 if failed == 0 else 1
 
 
-def _find_by_source(source_ref: str) -> Optional[int]:
+def _find_by_source(source_ref: str) -> Optional[str]:
     with db.get_conn() as conn:
         row = conn.execute(
             "SELECT id FROM recipes WHERE source_ref = ? LIMIT 1", (source_ref,)
         ).fetchone()
-    return int(row["id"]) if row else None
+    return row["id"] if row else None
 
 
 def cmd_generate_images(args: argparse.Namespace) -> int:
@@ -319,7 +319,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         recipes = repo.list_recipes(conn, limit=args.limit, offset=0)
     for r in recipes:
         time = f"{r.total_time_min}m" if r.total_time_min else "  -"
-        print(f"  [{r.id:>4}]  {time}  {r.title}")
+        print(f"  [{r.id[:8]}]  {time}  {r.title}")
     print(f"-- {len(recipes)} recipes")
     return 0
 

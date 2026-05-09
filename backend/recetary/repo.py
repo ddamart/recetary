@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import uuid
 from typing import Optional
 
 from .models import (
@@ -33,16 +34,18 @@ def upsert_ingredient(conn: sqlite3.Connection, name: str, category: str) -> int
     return int(cursor.lastrowid)
 
 
-def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> int:
-    cursor = conn.execute(
+def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> str:
+    recipe_id = uuid.uuid4().hex
+    conn.execute(
         """
         INSERT INTO recipes (
-            title, subtitle, description, servings,
+            id, title, subtitle, description, servings,
             total_time_min, cook_time_min, difficulty, image_path,
             source_type, source_ref, raw_text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            recipe_id,
             payload.title,
             payload.subtitle,
             payload.description,
@@ -56,7 +59,6 @@ def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> int:
             payload.raw_text,
         ),
     )
-    recipe_id = int(cursor.lastrowid)
 
     # Deduplicate ingredients by canonical name within this recipe.
     seen: set[int] = set()
@@ -111,7 +113,7 @@ def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> int:
 
 
 def _hydrate_recipe(conn: sqlite3.Connection, row: sqlite3.Row) -> Recipe:
-    rid = int(row["id"])
+    rid = row["id"]
     ingredient_rows = conn.execute(
         """
         SELECT i.id AS ingredient_id, i.name, i.category,
@@ -189,7 +191,7 @@ def _hydrate_recipe(conn: sqlite3.Connection, row: sqlite3.Row) -> Recipe:
     )
 
 
-def get_recipe(conn: sqlite3.Connection, recipe_id: int) -> Optional[Recipe]:
+def get_recipe(conn: sqlite3.Connection, recipe_id: str) -> Optional[Recipe]:
     row = conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
     return _hydrate_recipe(conn, row) if row else None
 
@@ -229,7 +231,7 @@ def list_recipes(
         ).fetchall()
     summaries: list[RecipeSummary] = []
     for r in rows:
-        rid = int(r["id"])
+        rid = r["id"]
         tags = [
             row["tag"]
             for row in conn.execute(
@@ -251,14 +253,14 @@ def list_recipes(
     return summaries
 
 
-def delete_recipe(conn: sqlite3.Connection, recipe_id: int) -> bool:
+def delete_recipe(conn: sqlite3.Connection, recipe_id: str) -> bool:
     cursor = conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
     return cursor.rowcount > 0
 
 
 def update_recipe(
     conn: sqlite3.Connection,
-    recipe_id: int,
+    recipe_id: str,
     payload: RecipeCreate,
 ) -> Optional[Recipe]:
     row = conn.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()

@@ -403,6 +403,15 @@ export function RecipeForm({
         />
       </Field>
 
+      <Field label="Fuente (URL, nombre de archivo...)">
+        <input
+          value={draft.source_ref ?? ""}
+          onChange={(e) => patch({ source_ref: e.target.value || null })}
+          placeholder="https://..."
+          className="input"
+        />
+      </Field>
+
       {error && (
         <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
           {error}

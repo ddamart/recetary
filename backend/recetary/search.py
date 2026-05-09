@@ -98,7 +98,7 @@ def _resolve_token_to_group(
 
 def _filter_recipe_ids_by_groups(
     conn: sqlite3.Connection, groups: list[set[int]]
-) -> list[int]:
+) -> list[str]:
     """Return recipe ids that contain ≥1 ingredient from EACH group."""
     if not groups:
         return []
@@ -111,9 +111,9 @@ def _filter_recipe_ids_by_groups(
         f"WHERE ingredient_id IN ({placeholders})",
         tuple(universe),
     ).fetchall()
-    by_recipe: dict[int, set[int]] = {}
+    by_recipe: dict[str, set[int]] = {}
     for r in rows:
-        by_recipe.setdefault(int(r["recipe_id"]), set()).add(int(r["ingredient_id"]))
+        by_recipe.setdefault(r["recipe_id"], set()).add(int(r["ingredient_id"]))
     return [rid for rid, ings in by_recipe.items() if all(g & ings for g in groups)]
 
 
@@ -132,7 +132,7 @@ def _strip_diacritics(s: str) -> str:
     )
 
 
-def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
+def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
     """SQL LIKE substring match on title, subtitle, and description.
 
     Uses strip_diacritics() so 'asiatica' matches 'asiática'.
@@ -161,23 +161,25 @@ def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
         f"SELECT id FROM recipes WHERE {conditions} ORDER BY created_at DESC",
         params,
     ).fetchall()
-    return [int(r["id"]) for r in rows]
+    return [r["id"] for r in rows]
 
 
-def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
+def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
     """Tier 1 FTS5 prefix + LIKE union → Tier 2 fuzzy fallback."""
-    result_ids: list[int] = []
-    seen: set[int] = set()
+    result_ids: list[str] = []
+    seen: set[str] = set()
 
     # Tier 1a: FTS5 prefix (fast, BM25-ranked) — best relevance ordering
+    # With TEXT PK we must join on rowid to get the recipe id.
     fts = _fts_query(q)
     if fts:
         rows = conn.execute(
-            "SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ? ORDER BY bm25(recipes_fts)",
+            "SELECT r.id FROM recipes_fts f JOIN recipes r ON r.rowid = f.rowid "
+            "WHERE recipes_fts MATCH ? ORDER BY bm25(recipes_fts)",
             (fts,),
         ).fetchall()
         for r in rows:
-            rid = int(r["rowid"])
+            rid = r["id"]
             if rid not in seen:
                 seen.add(rid)
                 result_ids.append(rid)
@@ -200,12 +202,12 @@ def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[int]:
         return []
     scored = process.extract(
         q,
-        {int(r["id"]): r["hay"] for r in candidates},
+        {r["id"]: r["hay"] for r in candidates},
         scorer=fuzz.partial_ratio,
         score_cutoff=TITLE_FUZZY_THRESHOLD,
         limit=50,
     )
-    return [int(rid) for _name, _score, rid in scored]
+    return [rid for _name, _score, rid in scored]
 
 
 def search_recipes(
@@ -231,7 +233,7 @@ def search_recipes(
             groups.append({pair[0] for pair in group})
             matched_names.append(token.strip().lower())
 
-    candidate_ids: Optional[set[int]] = None
+    candidate_ids: Optional[set[str]] = None
     if groups:
         candidate_ids = set(_filter_recipe_ids_by_groups(conn, groups))
         if not candidate_ids:
@@ -241,7 +243,7 @@ def search_recipes(
         rows = conn.execute(
             "SELECT recipe_id FROM tags WHERE tag = ?", (tag,)
         ).fetchall()
-        tag_ids = {int(r["recipe_id"]) for r in rows}
+        tag_ids = {r["recipe_id"] for r in rows}
         candidate_ids = tag_ids if candidate_ids is None else candidate_ids & tag_ids
         if not candidate_ids:
             return []
@@ -261,7 +263,7 @@ def search_recipes(
                 f"SELECT id FROM recipes WHERE id IN ({placeholders}) ORDER BY {order_col}",
                 tuple(ordered_title_ids),
             ).fetchall()
-            ordered_ids = [int(r["id"]) for r in rows]
+            ordered_ids = [r["id"] for r in rows]
         else:
             ordered_ids = ordered_title_ids
         page_ids = ordered_ids[offset : offset + limit]
@@ -271,14 +273,14 @@ def search_recipes(
             f"SELECT id FROM recipes WHERE id IN ({placeholders}) ORDER BY {order_col}",
             tuple(candidate_ids),
         ).fetchall()
-        ordered_ids = [int(r["id"]) for r in rows]
+        ordered_ids = [r["id"] for r in rows]
         page_ids = ordered_ids[offset : offset + limit]
     else:
         rows = conn.execute(
             f"SELECT id FROM recipes ORDER BY {order_col} LIMIT ? OFFSET ?",
             (limit, offset),
         ).fetchall()
-        page_ids = [int(r["id"]) for r in rows]
+        page_ids = [r["id"] for r in rows]
 
     return [_hydrate_match(conn, rid, matched_names) for rid in page_ids]
 
@@ -302,7 +304,7 @@ def random_recipe(
 
 
 def _hydrate_match(
-    conn: sqlite3.Connection, recipe_id: int, matched_names: list[str]
+    conn: sqlite3.Connection, recipe_id: str, matched_names: list[str]
 ) -> RecipeMatch:
     row = conn.execute(
         """
@@ -334,7 +336,7 @@ def _hydrate_match(
         return any(t in nl for t in tokens_lower)
     missing = [n for n in all_names if not _is_matched(n)]
     return RecipeMatch(
-        id=int(row["id"]),
+        id=row["id"],
         title=row["title"],
         subtitle=row["subtitle"],
         image_path=row["image_path"],
