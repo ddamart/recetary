@@ -23,6 +23,7 @@ router = APIRouter(prefix="/recipes", tags=["recipes"])
 class ImageGenerateRequest(BaseModel):
     title: str
     subtitle: Optional[str] = None
+    description: Optional[str] = None
     style: Optional[str] = None
 
 
@@ -68,7 +69,7 @@ async def generate_image(payload: ImageGenerateRequest) -> Response:
     """Generate a styled preview image from a recipe title."""
     try:
         png_bytes = await asyncio.to_thread(
-            generate_recipe_image, payload.title, payload.subtitle, payload.style or "ghibli",
+            generate_recipe_image, payload.title, payload.subtitle, payload.description, payload.style or "ghibli",
         )
     except RateLimitError as e:
         raise HTTPException(

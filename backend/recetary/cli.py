@@ -293,7 +293,11 @@ def cmd_generate_images(args: argparse.Namespace) -> int:
             continue
 
         try:
-            png_bytes = generate_recipe_image(r.title, style=args.style)
+            # Fetch full recipe for description context
+            with db.get_conn() as conn:
+                full = repo.get_recipe(conn, r.id)
+            desc = full.description if full else None
+            png_bytes = generate_recipe_image(r.title, subtitle=r.subtitle, description=desc, style=args.style)
         except ImageGenerationError as e:
             print(f"    ✗ generation failed: {e}")
             failed += 1

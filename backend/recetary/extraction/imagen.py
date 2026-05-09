@@ -103,28 +103,38 @@ def _get_api_key() -> str:
     return key
 
 
-def _translate_dish(client: genai.Client, dish: str) -> str:
-    """Translate a Spanish dish name to English for better Imagen comprehension."""
+def _translate_dish(client: genai.Client, title: str, subtitle: str | None, description: str | None) -> str:
+    """Translate a Spanish dish to a concise English visual description for Imagen."""
+    parts = [title]
+    if subtitle:
+        parts.append(subtitle)
+    if description:
+        parts.append(description)
+    dish_text = " — ".join(parts)
     try:
         response = client.models.generate_content(
             model=TRANSLATE_MODEL,
             contents=(
-                "Translate this Spanish dish name to English. "
-                "Reply ONLY with the English translation, nothing else.\n\n"
-                f"{dish}"
+                "Given this Spanish recipe info, write a short English description (max 25 words) "
+                "of what the finished dish looks like on a plate. Focus on the main visible "
+                "ingredients, colors and textures. Reply ONLY with the description.\n\n"
+                f"{dish_text}"
             ),
         )
         translated = response.text.strip()
-        return translated if translated else dish
+        return translated if translated else title
     except Exception:
-        return dish
+        return title
 
 
-def _build_prompt(client: genai.Client, title: str, subtitle: str | None = None, style: str = DEFAULT_STYLE) -> str:
-    dish = title
-    if subtitle:
-        dish = f"{title} ({subtitle})"
-    dish_en = _translate_dish(client, dish)
+def _build_prompt(
+    client: genai.Client,
+    title: str,
+    subtitle: str | None = None,
+    description: str | None = None,
+    style: str = DEFAULT_STYLE,
+) -> str:
+    dish_en = _translate_dish(client, title, subtitle, description)
     style_prompt = STYLES.get(style, STYLES[DEFAULT_STYLE])["prompt"]
     return PROMPT_FRAME.format(dish=dish_en, style_prompt=style_prompt)
 
@@ -192,7 +202,10 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
 
 
 def generate_recipe_image(
-    title: str, subtitle: str | None = None, style: str = DEFAULT_STYLE,
+    title: str,
+    subtitle: str | None = None,
+    description: str | None = None,
+    style: str = DEFAULT_STYLE,
 ) -> bytes:
     """Generate a styled PNG image for a recipe.
 
@@ -201,5 +214,5 @@ def generate_recipe_image(
     """
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
-    prompt = _build_prompt(client, title, subtitle, style)
+    prompt = _build_prompt(client, title, subtitle, description, style)
     return _call_api(client, prompt)

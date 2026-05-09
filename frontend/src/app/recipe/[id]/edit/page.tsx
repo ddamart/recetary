@@ -40,7 +40,7 @@ export default function EditRecipePage() {
     setImageLoading(true);
     setImageError(null);
     try {
-      const blob = await api.generateImage(draft.title, draft.subtitle, style);
+      const blob = await api.generateImage(draft.title, draft.subtitle, draft.description, style);
       setImageBlob(blob);
       await api.uploadImage(id, blob);
     } catch (e: unknown) {
