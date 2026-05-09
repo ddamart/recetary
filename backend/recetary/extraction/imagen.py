@@ -130,8 +130,10 @@ def _translate_dish(
         prompt_text = (
             "Look at this photo of the dish and the Spanish recipe info below. "
             "Write a short English description (max 25 words) of what the finished "
-            "dish looks like on a plate. Focus on the main visible ingredients, "
-            "colors and textures. Reply ONLY with the description.\n\n"
+            "dish looks like on a plate. Describe the visual appearance: colors, "
+            "textures, shapes, and how it is plated. Use common English food terms "
+            "an image generator would understand — avoid ambiguous foreign words. "
+            "Reply ONLY with the description.\n\n"
             f"{dish_text}"
         )
         contents = [
@@ -141,8 +143,10 @@ def _translate_dish(
     else:
         contents = (
             "Given this Spanish recipe info, write a short English description (max 25 words) "
-            "of what the finished dish looks like on a plate. Focus on the main visible "
-            "ingredients, colors and textures. Reply ONLY with the description.\n\n"
+            "of what the finished dish looks like on a plate. Describe the visual appearance: "
+            "colors, textures, shapes, and how it is plated. Use common English food terms "
+            "an image generator would understand — avoid ambiguous foreign words. "
+            "Reply ONLY with the description.\n\n"
             f"{dish_text}"
         )
 
