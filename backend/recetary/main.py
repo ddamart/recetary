@@ -42,4 +42,5 @@ def healthz() -> dict[str, str]:
 @app.get("/info")
 def info() -> dict[str, str]:
     backend = os.environ.get("EXTRACTOR_BACKEND", "claude").lower()
-    return {"extractor_backend": backend}
+    image_backend = os.environ.get("IMAGE_BACKEND", "imagen").lower()
+    return {"extractor_backend": backend, "image_backend": image_backend}

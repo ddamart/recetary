@@ -1,4 +1,9 @@
-"""Multi-style recipe image generation via Google Imagen."""
+"""Multi-style recipe image generation with pluggable backends.
+
+Prompt building (Gemini translation + style frame) is shared by all backends.
+The actual image generation is dispatched to the backend selected by the
+``IMAGE_BACKEND`` env var: ``imagen`` (default), ``together``, or ``local``.
+"""
 from __future__ import annotations
 
 import os
@@ -233,6 +238,38 @@ def _call_api(client: genai.Client, prompt: str) -> bytes:
     )
 
 
+VALID_BACKENDS = {"imagen", "together", "local"}
+
+
+def get_image_backend() -> str:
+    """Return the active image backend name (for /info)."""
+    load_dotenv_once()
+    return os.environ.get("IMAGE_BACKEND", "imagen").lower()
+
+
+def _call_backend(prompt: str) -> bytes:
+    """Dispatch image generation to the configured backend."""
+    backend = get_image_backend()
+
+    if backend == "together":
+        from .image_backends.together import generate
+        return generate(prompt)
+
+    if backend == "local":
+        from .image_backends.local_flux import generate
+        return generate(prompt)
+
+    if backend == "imagen":
+        api_key = _get_api_key()
+        client = genai.Client(api_key=api_key)
+        return _call_api(client, prompt)
+
+    raise ImageGenerationError(
+        f"Unknown IMAGE_BACKEND={backend!r}. "
+        f"Valid options: {', '.join(sorted(VALID_BACKENDS))}"
+    )
+
+
 def generate_recipe_image(
     title: str,
     subtitle: str | None = None,
@@ -255,4 +292,4 @@ def generate_recipe_image(
         client, title, subtitle, description, style,
         reference_image_bytes, reference_mime_type,
     )
-    return _call_api(client, prompt)
+    return _call_backend(prompt)

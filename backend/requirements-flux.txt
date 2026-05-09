@@ -1,0 +1,19 @@
+# Requirements for flux_server.py (local FLUX Schnell image generation).
+# These are heavy ML dependencies — install only on the machine running
+# the FLUX server, not on the main backend.
+#
+# Install with:
+#   pip install -r requirements-flux.txt
+#
+# For CUDA 12.6 (RTX 4080 SUPER):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+
+torch
+torchvision
+diffusers>=0.31.0
+transformers>=4.44.0
+accelerate>=0.34.0
+sentencepiece
+protobuf
+fastapi
+uvicorn[standard]
