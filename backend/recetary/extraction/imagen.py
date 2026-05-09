@@ -29,7 +29,6 @@ STYLES: dict[str, dict[str, str]] = {
             "Painted in Studio Ghibli style with soft anime watercolor, "
             "warm golden lighting and vibrant appetizing colors."
         ),
-        "prompt_short": "Studio Ghibli anime watercolor, warm golden light, vibrant colors.",
     },
     "realistic": {
         "label": "Realista",
@@ -37,7 +36,6 @@ STYLES: dict[str, dict[str, str]] = {
             "Professional food magazine photography with natural side lighting, "
             "shallow depth of field and vibrant natural colors."
         ),
-        "prompt_short": "Food magazine photo, natural side lighting, shallow depth of field.",
     },
     "watercolor": {
         "label": "Acuarela clásica",
@@ -45,7 +43,6 @@ STYLES: dict[str, dict[str, str]] = {
             "Traditional watercolor illustration on textured paper with loose "
             "visible brushstrokes, warm soft color palette, artisan cookbook style."
         ),
-        "prompt_short": "Watercolor illustration, textured paper, loose brushstrokes, warm palette.",
     },
     "popart": {
         "label": "Pop Art",
@@ -53,7 +50,6 @@ STYLES: dict[str, dict[str, str]] = {
             "Pop art style with bold saturated flat colors, thick black comic-book "
             "outlines, Ben-Day dot patterns."
         ),
-        "prompt_short": "Pop art, bold flat colors, thick black outlines, Ben-Day dots.",
     },
     "minimal": {
         "label": "Minimalista",
@@ -61,7 +57,6 @@ STYLES: dict[str, dict[str, str]] = {
             "Minimalist flat design with simplified geometric shapes, "
             "soft pastel colors and clean composition without textures."
         ),
-        "prompt_short": "Minimalist flat design, geometric shapes, soft pastels, clean composition.",
     },
     "pixel": {
         "label": "Pixel Art",
@@ -69,7 +64,6 @@ STYLES: dict[str, dict[str, str]] = {
             "Retro 16-bit pixel art style with visible pixels, "
             "limited vibrant color palette, like a classic video game."
         ),
-        "prompt_short": "16-bit pixel art, visible pixels, limited vibrant palette, retro game style.",
     },
 }
 
@@ -83,13 +77,6 @@ PROMPT_FRAME = (
     "Detailed textures, steam rising, cozy blurred kitchen background. "
     "The image must NOT contain any text, letters, words, numbers, "
     "watermarks or typography of any kind."
-)
-
-# Compact version for backends with short token limits (CLIP: 77 tokens)
-PROMPT_FRAME_SHORT = (
-    "No text, no watermarks. Close-up of {dish}. "
-    "{style_prompt} "
-    "Only food, steam rising, blurred background."
 )
 
 
@@ -137,9 +124,6 @@ def _translate_dish(
     When a reference image is provided, Gemini analyses it for a more accurate
     description of the finished dish.
     """
-    # Local FLUX uses CLIP (77 tokens) — keep descriptions shorter
-    max_words = 15 if get_image_backend() == "local" else 25
-
     parts = [title]
     if subtitle:
         parts.append(subtitle)
@@ -150,7 +134,7 @@ def _translate_dish(
     if reference_image_bytes and reference_mime_type:
         prompt_text = (
             "Look at this photo of the dish and the Spanish recipe info below. "
-            f"Write a short English description (max {max_words} words) of what the finished "
+            f"Write a short English description (max 25 words) of what the finished "
             "dish looks like on a plate. Describe colors, textures, and plating. "
             "Use common English food terms an image generator would understand — "
             "avoid ambiguous foreign words. Reply ONLY with the description.\n\n"
@@ -163,7 +147,7 @@ def _translate_dish(
     else:
         contents = (
             "Given this Spanish recipe info, write a short English description "
-            f"(max {max_words} words) of what the finished dish looks like on a plate. "
+            f"(max 25 words) of what the finished dish looks like on a plate. "
             "Describe colors, textures, and plating. Use common English food terms "
             "an image generator would understand — avoid ambiguous foreign words. "
             "Reply ONLY with the description.\n\n"
@@ -199,13 +183,6 @@ def _build_prompt(
         client, title, subtitle, description,
         reference_image_bytes, reference_mime_type,
     )
-    # Local FLUX backend uses CLIP (77 token limit) — use compact prompts
-    backend = get_image_backend()
-    if backend == "local":
-        style_entry = STYLES.get(style, STYLES[DEFAULT_STYLE])
-        style_prompt = style_entry.get("prompt_short", style_entry["prompt"])
-        return PROMPT_FRAME_SHORT.format(dish=dish_en, style_prompt=style_prompt)
-
     style_prompt = STYLES.get(style, STYLES[DEFAULT_STYLE])["prompt"]
     return PROMPT_FRAME.format(dish=dish_en, style_prompt=style_prompt)
 
