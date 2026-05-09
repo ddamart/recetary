@@ -18,44 +18,43 @@ STYLES: dict[str, dict[str, str]] = {
     "ghibli": {
         "label": "Ghibli",
         "prompt": (
-            "Pintado en estilo Studio Ghibli con acuarela anime suave, "
-            "iluminación cálida dorada y colores vibrantes y apetitosos."
+            "Painted in Studio Ghibli style with soft anime watercolor, "
+            "warm golden lighting and vibrant appetizing colors."
         ),
     },
     "realistic": {
         "label": "Realista",
         "prompt": (
-            "Fotografía profesional de revista gastronómica con iluminación "
-            "natural lateral, profundidad de campo reducida y colores naturales vibrantes."
+            "Professional food magazine photography with natural side lighting, "
+            "shallow depth of field and vibrant natural colors."
         ),
     },
     "watercolor": {
         "label": "Acuarela clásica",
         "prompt": (
-            "Ilustración en acuarela tradicional sobre papel texturizado con "
-            "trazos sueltos y visibles, paleta de colores cálidos y suaves, "
-            "estilo libro de cocina artesanal."
+            "Traditional watercolor illustration on textured paper with loose "
+            "visible brushstrokes, warm soft color palette, artisan cookbook style."
         ),
     },
     "popart": {
         "label": "Pop Art",
         "prompt": (
-            "Estilo pop art con colores planos llamativos y saturados, "
-            "contornos negros gruesos tipo cómic, tramas de puntos Ben-Day."
+            "Pop art style with bold saturated flat colors, thick black comic-book "
+            "outlines, Ben-Day dot patterns."
         ),
     },
     "minimal": {
         "label": "Minimalista",
         "prompt": (
-            "Estilo flat design minimalista con formas geométricas "
-            "simplificadas, colores pastel suaves y composición limpia sin texturas."
+            "Minimalist flat design with simplified geometric shapes, "
+            "soft pastel colors and clean composition without textures."
         ),
     },
     "pixel": {
         "label": "Pixel Art",
         "prompt": (
-            "Estilo retro pixel art 16-bit con píxeles visibles, "
-            "paleta de colores limitada y vibrante, como un videojuego clásico."
+            "Retro 16-bit pixel art style with visible pixels, "
+            "limited vibrant color palette, like a classic video game."
         ),
     },
 }
@@ -63,13 +62,13 @@ STYLES: dict[str, dict[str, str]] = {
 DEFAULT_STYLE = "ghibli"
 
 PROMPT_FRAME = (
-    "Fotografía gastronómica en primer plano de {dish}, "
-    "presentado en un plato de cerámica rústica. "
+    "Close-up food photography of {dish}, "
+    "served on a rustic ceramic plate. "
     "{style_prompt} "
-    "El foco está completamente en la comida — sin personas, sin personajes, sin animales, sin paisajes. "
-    "Texturas detalladas, vapor ascendiendo, fondo de cocina acogedora desenfocado. "
-    "IMPORTANTE: la imagen NO debe contener texto, letras, palabras, números, "
-    "marcas de agua ni tipografía de ningún tipo."
+    "Focus entirely on the food — no people, no characters, no animals, no landscapes. "
+    "Detailed textures, steam rising, cozy blurred kitchen background. "
+    "IMPORTANT: the image must NOT contain any text, letters, words, numbers, "
+    "watermarks or typography of any kind."
 )
 
 
