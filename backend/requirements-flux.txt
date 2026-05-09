@@ -18,6 +18,7 @@ torchvision
 diffusers>=0.31.0
 transformers>=4.44.0
 accelerate>=0.34.0
+bitsandbytes>=0.44.0
 sentencepiece
 protobuf
 fastapi

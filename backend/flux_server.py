@@ -16,13 +16,15 @@ import logging
 from contextlib import asynccontextmanager
 
 import torch
-from diffusers import FluxPipeline
+from diffusers import BitsAndBytesConfig, FluxPipeline, FluxTransformer2DModel
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
 logger = logging.getLogger("flux_server")
 logging.basicConfig(level=logging.INFO)
+
+MODEL_ID = "black-forest-labs/FLUX.1-schnell"
 
 pipe: FluxPipeline | None = None
 
@@ -31,11 +33,26 @@ pipe: FluxPipeline | None = None
 async def lifespan(app: FastAPI):
     global pipe
     logger.info("Loading FLUX Schnell (NF4 quantised)...")
+
+    # Load the transformer (largest component) in NF4 to fit in 16 GB VRAM
+    nf4_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
+    transformer = FluxTransformer2DModel.from_pretrained(
+        MODEL_ID,
+        subfolder="transformer",
+        quantization_config=nf4_config,
+        torch_dtype=torch.bfloat16,
+    )
     pipe = FluxPipeline.from_pretrained(
-        "black-forest-labs/FLUX.1-schnell",
+        MODEL_ID,
+        transformer=transformer,
         torch_dtype=torch.bfloat16,
     )
     pipe.enable_model_cpu_offload()
+
     logger.info("FLUX Schnell ready.")
     yield
     pipe = None
