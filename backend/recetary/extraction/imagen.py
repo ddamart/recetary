@@ -95,7 +95,7 @@ def get_available_styles() -> list[dict[str, str]]:
     return [{"id": k, "label": v["label"]} for k, v in STYLES.items()]
 
 
-TRANSLATE_MODEL = "gemini-2.0-flash"
+TRANSLATE_MODEL = "gemini-2.5-flash"
 
 
 def _get_api_key() -> str:
