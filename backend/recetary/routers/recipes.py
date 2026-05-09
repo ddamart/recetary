@@ -4,9 +4,8 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
-from pydantic import BaseModel
 
 from .. import db, repo
 from ..extraction.imagen import (
@@ -18,13 +17,6 @@ from ..extraction.imagen import (
 from ..models import Recipe, RecipeCreate, RecipeSummary
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
-
-
-class ImageGenerateRequest(BaseModel):
-    title: str
-    subtitle: Optional[str] = None
-    description: Optional[str] = None
-    style: Optional[str] = None
 
 
 @router.get("/count", response_model=int)
@@ -65,11 +57,24 @@ def list_image_styles() -> list[dict[str, str]]:
 
 
 @router.post("/generate-image")
-async def generate_image(payload: ImageGenerateRequest) -> Response:
+async def generate_image(
+    title: str = Form(...),
+    subtitle: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    style: Optional[str] = Form(None),
+    reference_image: Optional[UploadFile] = File(None),
+) -> Response:
     """Generate a styled preview image from a recipe title."""
+    ref_bytes: bytes | None = None
+    ref_mime: str | None = None
+    if reference_image and reference_image.size:
+        ref_bytes = await reference_image.read()
+        ref_mime = reference_image.content_type or "image/jpeg"
     try:
         png_bytes = await asyncio.to_thread(
-            generate_recipe_image, payload.title, payload.subtitle, payload.description, payload.style or "ghibli",
+            generate_recipe_image,
+            title, subtitle, description, style or "ghibli",
+            ref_bytes, ref_mime,
         )
     except RateLimitError as e:
         raise HTTPException(

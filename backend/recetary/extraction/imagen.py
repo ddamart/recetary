@@ -103,23 +103,50 @@ def _get_api_key() -> str:
     return key
 
 
-def _translate_dish(client: genai.Client, title: str, subtitle: str | None, description: str | None) -> str:
-    """Translate a Spanish dish to a concise English visual description for Imagen."""
+def _translate_dish(
+    client: genai.Client,
+    title: str,
+    subtitle: str | None,
+    description: str | None,
+    reference_image_bytes: bytes | None = None,
+    reference_mime_type: str | None = None,
+) -> str:
+    """Translate a Spanish dish to a concise English visual description for Imagen.
+
+    When a reference image is provided, Gemini analyses it for a more accurate
+    description of the finished dish.
+    """
     parts = [title]
     if subtitle:
         parts.append(subtitle)
     if description:
         parts.append(description)
     dish_text = " — ".join(parts)
+
+    if reference_image_bytes and reference_mime_type:
+        prompt_text = (
+            "Look at this photo of the dish and the Spanish recipe info below. "
+            "Write a short English description (max 25 words) of what the finished "
+            "dish looks like on a plate. Focus on the main visible ingredients, "
+            "colors and textures. Reply ONLY with the description.\n\n"
+            f"{dish_text}"
+        )
+        contents = [
+            types.Part.from_bytes(data=reference_image_bytes, mime_type=reference_mime_type),
+            prompt_text,
+        ]
+    else:
+        contents = (
+            "Given this Spanish recipe info, write a short English description (max 25 words) "
+            "of what the finished dish looks like on a plate. Focus on the main visible "
+            "ingredients, colors and textures. Reply ONLY with the description.\n\n"
+            f"{dish_text}"
+        )
+
     try:
         response = client.models.generate_content(
             model=TRANSLATE_MODEL,
-            contents=(
-                "Given this Spanish recipe info, write a short English description (max 25 words) "
-                "of what the finished dish looks like on a plate. Focus on the main visible "
-                "ingredients, colors and textures. Reply ONLY with the description.\n\n"
-                f"{dish_text}"
-            ),
+            contents=contents,
         )
         translated = response.text.strip()
         return translated if translated else title
@@ -133,8 +160,13 @@ def _build_prompt(
     subtitle: str | None = None,
     description: str | None = None,
     style: str = DEFAULT_STYLE,
+    reference_image_bytes: bytes | None = None,
+    reference_mime_type: str | None = None,
 ) -> str:
-    dish_en = _translate_dish(client, title, subtitle, description)
+    dish_en = _translate_dish(
+        client, title, subtitle, description,
+        reference_image_bytes, reference_mime_type,
+    )
     style_prompt = STYLES.get(style, STYLES[DEFAULT_STYLE])["prompt"]
     return PROMPT_FRAME.format(dish=dish_en, style_prompt=style_prompt)
 
@@ -206,13 +238,21 @@ def generate_recipe_image(
     subtitle: str | None = None,
     description: str | None = None,
     style: str = DEFAULT_STYLE,
+    reference_image_bytes: bytes | None = None,
+    reference_mime_type: str | None = None,
 ) -> bytes:
     """Generate a styled PNG image for a recipe.
+
+    When *reference_image_bytes* is provided, Gemini Flash analyses the photo
+    to produce a more accurate visual description before passing it to Imagen.
 
     Returns raw PNG bytes. Retries on rate-limit (429) errors.
     Raises ImageGenerationError on failure.
     """
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
-    prompt = _build_prompt(client, title, subtitle, description, style)
+    prompt = _build_prompt(
+        client, title, subtitle, description, style,
+        reference_image_bytes, reference_mime_type,
+    )
     return _call_api(client, prompt)

@@ -35,6 +35,7 @@ export default function AddPage() {
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageStyles, setImageStyles] = useState<{ id: string; label: string }[]>([]);
   const [selectedStyle, setSelectedStyle] = useState("ghibli");
+  const [referenceBlob, setReferenceBlob] = useState<Blob | null>(null);
 
   useEffect(() => {
     api.getInfo().then((info) => setBackend(info.extractor_backend)).catch(() => {});
@@ -48,7 +49,7 @@ export default function AddPage() {
     setImageLoading(true);
     setImageError(null);
     try {
-      const blob = await api.generateImage(draft.title, draft.subtitle, draft.description, style);
+      const blob = await api.generateImage(draft.title, draft.subtitle, draft.description, style, referenceBlob);
       setImageBlob(blob);
     } catch (e: unknown) {
       if (e instanceof Error && "status" in e && (e as { status: number }).status === 429) {
@@ -57,7 +58,7 @@ export default function AddPage() {
     } finally {
       setImageLoading(false);
     }
-  }, [draft]);
+  }, [draft, referenceBlob]);
 
   async function extract() {
     setError(null);
@@ -116,7 +117,7 @@ export default function AddPage() {
         draft={draft}
         setDraft={setDraft}
         header="Revisa antes de guardar"
-        onBack={() => { setDraft(null); setImageBlob(null); }}
+        onBack={() => { setDraft(null); setImageBlob(null); setReferenceBlob(null); }}
         backLabel="← Cambiar fuente"
         onSubmit={commit}
         busy={busy}
@@ -129,6 +130,8 @@ export default function AddPage() {
         selectedStyle={selectedStyle}
         onStyleSelect={(s) => setSelectedStyle(s)}
         onGenerateImage={(s) => generateImage(s)}
+        referenceImage={referenceBlob}
+        onReferenceImageChange={setReferenceBlob}
       />
     );
   }

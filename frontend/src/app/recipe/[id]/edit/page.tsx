@@ -22,6 +22,7 @@ export default function EditRecipePage() {
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageStyles, setImageStyles] = useState<{ id: string; label: string }[]>([]);
   const [selectedStyle, setSelectedStyle] = useState("ghibli");
+  const [referenceBlob, setReferenceBlob] = useState<Blob | null>(null);
 
   useEffect(() => {
     api
@@ -40,7 +41,7 @@ export default function EditRecipePage() {
     setImageLoading(true);
     setImageError(null);
     try {
-      const blob = await api.generateImage(draft.title, draft.subtitle, draft.description, style);
+      const blob = await api.generateImage(draft.title, draft.subtitle, draft.description, style, referenceBlob);
       setImageBlob(blob);
       await api.uploadImage(id, blob);
     } catch (e: unknown) {
@@ -50,7 +51,7 @@ export default function EditRecipePage() {
     } finally {
       setImageLoading(false);
     }
-  }, [draft, id]);
+  }, [draft, id, referenceBlob]);
 
   async function save() {
     if (!draft || !recipe) return;
@@ -116,6 +117,8 @@ export default function EditRecipePage() {
       selectedStyle={selectedStyle}
       onStyleSelect={(s) => setSelectedStyle(s)}
       onGenerateImage={(s) => regenerateImage(s)}
+      referenceImage={referenceBlob}
+      onReferenceImageChange={setReferenceBlob}
       extraActions={
         <button
           type="button"

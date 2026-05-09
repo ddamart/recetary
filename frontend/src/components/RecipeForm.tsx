@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   CATEGORY_LABEL_ES,
   type IngredientCategory,
@@ -29,6 +29,8 @@ export interface RecipeFormProps {
   selectedStyle?: string;
   onStyleSelect?: (style: string) => void;
   onGenerateImage?: (style: string) => void;
+  referenceImage?: Blob | null;
+  onReferenceImageChange?: (blob: Blob | null) => void;
 }
 
 export function RecipeForm({
@@ -51,6 +53,8 @@ export function RecipeForm({
   selectedStyle,
   onStyleSelect,
   onGenerateImage,
+  referenceImage,
+  onReferenceImageChange,
 }: RecipeFormProps) {
   function patch(p: Partial<RecipeDraft>) {
     setDraft({ ...draft, ...p });
@@ -69,6 +73,39 @@ export function RecipeForm({
       }
     };
   }, [previewUrl, imageBlob]);
+
+  // Reference image handling
+  const refInputRef = useRef<HTMLInputElement>(null);
+
+  const refPreviewUrl = useMemo(() => {
+    if (referenceImage) return URL.createObjectURL(referenceImage);
+    return null;
+  }, [referenceImage]);
+
+  useEffect(() => {
+    return () => {
+      if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
+    };
+  }, [refPreviewUrl]);
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      if (!onReferenceImageChange) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const blob = item.getAsFile();
+          if (blob) {
+            e.preventDefault();
+            onReferenceImageChange(blob);
+            return;
+          }
+        }
+      }
+    },
+    [onReferenceImageChange],
+  );
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl relative">
@@ -116,6 +153,55 @@ export function RecipeForm({
             </div>
           )}
         </div>
+        {/* Reference image upload / paste */}
+        {onReferenceImageChange && (
+          <div
+            onPaste={handlePaste}
+            tabIndex={0}
+            className="flex items-center gap-3"
+          >
+            {refPreviewUrl ? (
+              <>
+                <img
+                  src={refPreviewUrl}
+                  alt="Referencia"
+                  className="w-16 h-16 rounded-lg object-cover border border-border"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    onReferenceImageChange(null);
+                    if (refInputRef.current) refInputRef.current.value = "";
+                  }}
+                  className="text-red-700 text-lg hover:text-red-900"
+                  aria-label="quitar referencia"
+                >
+                  ×
+                </button>
+                <span className="text-xs text-muted">Foto de referencia</span>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => refInputRef.current?.click()}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border text-xs text-muted hover:border-accent/40 hover:text-accent transition"
+              >
+                <span>📷</span>
+                <span>Subir o pegar foto de referencia</span>
+              </button>
+            )}
+            <input
+              ref={refInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onReferenceImageChange(f);
+              }}
+            />
+          </div>
+        )}
         {imageStyles && imageStyles.length > 0 && onStyleSelect && onGenerateImage && (
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-x-4 gap-y-1">
