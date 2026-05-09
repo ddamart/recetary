@@ -17,7 +17,7 @@ MAX_RETRIES = 3
 PROMPT_TEMPLATE = (
     "Fotografía gastronómica en primer plano de {dish}, "
     "presentado en un plato de cerámica rústica. "
-    "Pintado en estilo acuarela anime suave con iluminación cálida dorada y colores vibrantes y apetitosos. "
+    "Pintado en estilo Studio Ghibli con acuarela anime suave, iluminación cálida dorada y colores vibrantes y apetitosos. "
     "El foco está completamente en la comida — sin personas, sin personajes, sin animales, sin paisajes. "
     "Texturas detalladas, vapor ascendiendo, fondo de cocina acogedora desenfocado. "
     "Sin texto ni letras."
