@@ -7,16 +7,20 @@ import { SearchBox } from "@/components/SearchBox";
 import type { RecipeMatch, RecipeSummary } from "@/lib/types";
 
 const PAGE_SIZE = 24;
+const IDLE_PAGE_SIZE = 12;
 
 interface Props {
   initialRecipes: RecipeSummary[];
 }
 
 export function SearchableHome({ initialRecipes }: Props) {
+  // Stable idle set: the SSR random recipes + any loaded via "Cargar más"
+  const idleRecipes = useRef<RecipeSummary[]>(initialRecipes);
+
   const [results, setResults] = useState<(RecipeSummary | RecipeMatch)[]>(initialRecipes);
   const [searching, setSearching] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false); // no "load more" for random idle
+  const [hasMore, setHasMore] = useState(initialRecipes.length >= IDLE_PAGE_SIZE);
   const [hasQuery, setHasQuery] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [sort, setSort] = useState<"recent" | "alpha">("recent");
@@ -38,20 +42,9 @@ export function SearchableHome({ initialRecipes }: Props) {
       };
 
       if (isEmpty) {
-        // Back to idle: random recipes, no pagination
-        const id = ++reqId.current;
-        try {
-          const data = await api.listRecipes({ limit: 12, sort: "random" });
-          if (id === reqId.current) {
-            setResults(data);
-            setHasMore(false);
-          }
-        } catch {
-          if (id === reqId.current) {
-            setResults(initialRecipes);
-            setHasMore(false);
-          }
-        }
+        // Restore the stable idle set (no re-fetch, no re-roll)
+        setResults(idleRecipes.current);
+        setHasMore(idleRecipes.current.length >= IDLE_PAGE_SIZE);
         setSearching(false);
         return;
       }
@@ -80,7 +73,7 @@ export function SearchableHome({ initialRecipes }: Props) {
         }
       }
     },
-    [initialRecipes, sort],
+    [sort],
   );
 
   // Re-fetch when sort order changes (only during active search)
@@ -96,17 +89,28 @@ export function SearchableHome({ initialRecipes }: Props) {
   }, [sort]);
 
   async function loadMore() {
-    if (!hasQuery) return;
     setLoadingMore(true);
     try {
-      const data = await api.search({
-        ...lastQuery.current,
-        sort,
-        limit: PAGE_SIZE,
-        offset: results.length,
-      });
-      setResults((prev) => [...prev, ...data]);
-      setHasMore(data.length >= PAGE_SIZE);
+      if (hasQuery) {
+        const data = await api.search({
+          ...lastQuery.current,
+          sort,
+          limit: PAGE_SIZE,
+          offset: results.length,
+        });
+        setResults((prev) => [...prev, ...data]);
+        setHasMore(data.length >= PAGE_SIZE);
+      } else {
+        // Idle: load more by date (stable order for pagination)
+        const data = await api.listRecipes({
+          limit: IDLE_PAGE_SIZE,
+          sort: "recent",
+          offset: idleRecipes.current.length,
+        });
+        idleRecipes.current = [...idleRecipes.current, ...data];
+        setResults(idleRecipes.current);
+        setHasMore(data.length >= IDLE_PAGE_SIZE);
+      }
     } catch {
       setHasMore(false);
     } finally {
