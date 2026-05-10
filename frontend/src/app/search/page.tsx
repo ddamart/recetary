@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { api, imageUrl } from "@/lib/api";
-import { RecipeCard } from "@/components/RecipeCard";
 import { SearchBox } from "@/components/SearchBox";
 import { formatTime, parseIngredients } from "@/lib/format";
 
@@ -23,11 +22,9 @@ export default async function SearchPage(
   const page = typeof sp.page === "string" ? Math.max(1, Number(sp.page) || 1) : 1;
   const offset = (page - 1) * pageSize;
 
-  const isAlpha = sort === "alpha";
-
   const [results, totalCount] = await Promise.all([
     api.search({ q, ingredients, sort, limit: pageSize, offset }).catch(() => []),
-    isAlpha ? api.countRecipes().catch(() => 0) : Promise.resolve(0),
+    api.countRecipes().catch(() => 0),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -64,16 +61,14 @@ export default async function SearchPage(
 
   return (
     <div className="flex flex-col gap-6">
-      {!isAlpha && (
-        <SearchBox initialQuery={q ?? ""} initialIngredients={ingredients} />
-      )}
+      <SearchBox initialQuery={q ?? ""} initialIngredients={ingredients} />
 
       <div className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">
-          {isAlpha && noFilters ? "Todas las recetas" : (
+          {noFilters ? "Todas las recetas" : (
             <>{results.length} {results.length === 1 ? "receta" : "recetas"}</>
           )}
-          {isAlpha && totalCount > 0 && (
+          {totalCount > 0 && (
             <span className="text-sm font-normal text-muted ml-2">
               ({totalCount} total)
             </span>
@@ -106,7 +101,7 @@ export default async function SearchPage(
             ? <>Aún no hay recetas. <a href="/add" className="text-accent underline">Añade la primera</a>.</>
             : "Sin resultados. Prueba a quitar algún ingrediente o cambiar el texto."}
         </p>
-      ) : isAlpha ? (
+      ) : (
         <>
           <ul className="flex flex-col divide-y divide-border">
             {results.map((r) => (
@@ -207,33 +202,6 @@ export default async function SearchPage(
                   </Link>
                 )}
               </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {results.map((r) => (
-              <RecipeCard key={r.id} recipe={r} />
-            ))}
-          </div>
-
-          <div className="flex justify-center gap-3 mt-2">
-            {page > 1 && (
-              <Link
-                href={pageUrl(page - 1)}
-                className="px-5 py-2 rounded-lg border border-border text-sm font-medium hover:bg-accent-soft hover:border-accent transition"
-              >
-                ← Anterior
-              </Link>
-            )}
-            {results.length >= pageSize && (
-              <Link
-                href={pageUrl(page + 1)}
-                className="px-5 py-2 rounded-lg border border-border text-sm font-medium hover:bg-accent-soft hover:border-accent transition"
-              >
-                Siguiente →
-              </Link>
             )}
           </div>
         </>
