@@ -14,16 +14,22 @@ interface Props {
 }
 
 export function SearchableHome({ initialRecipes }: Props) {
-  // Stable idle set: the SSR random recipes + any loaded via "Cargar más"
+  // ── Idle state (random sample, stable across search round-trips) ──
   const idleRecipes = useRef<RecipeSummary[]>(initialRecipes);
+  const idleIds = useRef(new Set(initialRecipes.map((r) => r.id)));
+  const [idleView, setIdleView] = useState<RecipeSummary[]>(initialRecipes);
+  const [idleHasMore, setIdleHasMore] = useState(initialRecipes.length >= IDLE_PAGE_SIZE);
+  const [idleLoadingMore, setIdleLoadingMore] = useState(false);
 
-  const [results, setResults] = useState<(RecipeSummary | RecipeMatch)[]>(initialRecipes);
+  // ── Search state (completely separate) ──
+  const [searchResults, setSearchResults] = useState<RecipeMatch[]>([]);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [searchLoadingMore, setSearchLoadingMore] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(initialRecipes.length >= IDLE_PAGE_SIZE);
+  const [sort, setSort] = useState<"recent" | "alpha">("recent");
+
   const [hasQuery, setHasQuery] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const [sort, setSort] = useState<"recent" | "alpha">("recent");
   const reqId = useRef(0);
   const lastQuery = useRef<{ q?: string; ingredients?: string[]; tag?: string }>({});
 
@@ -31,6 +37,7 @@ export function SearchableHome({ initialRecipes }: Props) {
     api.listTags().then(setAvailableTags).catch(() => {});
   }, []);
 
+  // ── Search handler (debounced from SearchBox) ──
   const handleChange = useCallback(
     async (q: string, ingredients: string[], tag: string | undefined) => {
       const isEmpty = !q.trim() && ingredients.length === 0 && !tag;
@@ -42,9 +49,6 @@ export function SearchableHome({ initialRecipes }: Props) {
       };
 
       if (isEmpty) {
-        // Restore the stable idle set (no re-fetch, no re-roll)
-        setResults(idleRecipes.current);
-        setHasMore(idleRecipes.current.length >= IDLE_PAGE_SIZE);
         setSearching(false);
         return;
       }
@@ -59,67 +63,85 @@ export function SearchableHome({ initialRecipes }: Props) {
           offset: 0,
         });
         if (id === reqId.current) {
-          setResults(data);
-          setHasMore(data.length >= PAGE_SIZE);
+          setSearchResults(data);
+          setSearchHasMore(data.length >= PAGE_SIZE);
         }
       } catch {
         if (id === reqId.current) {
-          setResults([]);
-          setHasMore(false);
+          setSearchResults([]);
+          setSearchHasMore(false);
         }
       } finally {
-        if (id === reqId.current) {
-          setSearching(false);
-        }
+        if (id === reqId.current) setSearching(false);
       }
     },
     [sort],
   );
 
-  // Re-fetch when sort order changes (only during active search)
+  // Re-fetch search results when sort changes
   useEffect(() => {
     if (!hasQuery) return;
     const id = ++reqId.current;
     api.search({ ...lastQuery.current, sort, limit: PAGE_SIZE, offset: 0 })
       .then((data) => {
-        if (id === reqId.current) { setResults(data); setHasMore(data.length >= PAGE_SIZE); }
+        if (id === reqId.current) {
+          setSearchResults(data);
+          setSearchHasMore(data.length >= PAGE_SIZE);
+        }
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sort]);
 
-  async function loadMore() {
-    setLoadingMore(true);
+  // ── Load more (idle) ──
+  async function loadMoreIdle() {
+    setIdleLoadingMore(true);
     try {
-      if (hasQuery) {
-        const data = await api.search({
-          ...lastQuery.current,
-          sort,
-          limit: PAGE_SIZE,
-          offset: results.length,
-        });
-        setResults((prev) => [...prev, ...data]);
-        setHasMore(data.length >= PAGE_SIZE);
-      } else {
-        // Idle: load more by date (stable order for pagination)
-        const data = await api.listRecipes({
-          limit: IDLE_PAGE_SIZE,
-          sort: "recent",
-          offset: idleRecipes.current.length,
-        });
-        idleRecipes.current = [...idleRecipes.current, ...data];
-        setResults(idleRecipes.current);
-        setHasMore(data.length >= IDLE_PAGE_SIZE);
-      }
+      const data = await api.listRecipes({
+        limit: IDLE_PAGE_SIZE,
+        sort: "recent",
+        offset: idleRecipes.current.length,
+      });
+      // Deduplicate against the random initial batch
+      const fresh = data.filter((r) => !idleIds.current.has(r.id));
+      for (const r of fresh) idleIds.current.add(r.id);
+      idleRecipes.current = [...idleRecipes.current, ...fresh];
+      setIdleView(idleRecipes.current);
+      setIdleHasMore(data.length >= IDLE_PAGE_SIZE);
     } catch {
-      setHasMore(false);
+      setIdleHasMore(false);
     } finally {
-      setLoadingMore(false);
+      setIdleLoadingMore(false);
     }
   }
 
+  // ── Load more (search) ──
+  async function loadMoreSearch() {
+    setSearchLoadingMore(true);
+    try {
+      const data = await api.search({
+        ...lastQuery.current,
+        sort,
+        limit: PAGE_SIZE,
+        offset: searchResults.length,
+      });
+      setSearchResults((prev) => [...prev, ...data]);
+      setSearchHasMore(data.length >= PAGE_SIZE);
+    } catch {
+      setSearchHasMore(false);
+    } finally {
+      setSearchLoadingMore(false);
+    }
+  }
+
+  // ── Render ──
+  const results = hasQuery ? searchResults : idleView;
+  const hasMore = hasQuery ? searchHasMore : idleHasMore;
+  const loadingMore = hasQuery ? searchLoadingMore : idleLoadingMore;
+  const loadMore = hasQuery ? loadMoreSearch : loadMoreIdle;
+
   const heading = hasQuery
-    ? `${results.length} ${results.length === 1 ? "receta" : "recetas"}`
+    ? `${searchResults.length} ${searchResults.length === 1 ? "receta" : "recetas"}`
     : "Recetas";
 
   return (
@@ -154,7 +176,7 @@ export function SearchableHome({ initialRecipes }: Props) {
                   A–Z
                 </button>
               </div>
-              <span className="text-xs text-muted">{results.length} mostradas</span>
+              <span className="text-xs text-muted">{searchResults.length} mostradas</span>
             </div>
           )}
         </div>
