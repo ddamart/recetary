@@ -157,7 +157,7 @@ If an existing canonical ingredient list is provided in the user message, prefer
 
 # Other fields
 
-- `title`: the full elaborate Spanish title, including the leading "¡Polpette!" or similar prefix when present. Avoid splash labels like "Familia" — those go in `tags`.
+- `title`: the full elaborate Spanish title, using sentence case (only the first word capitalized, e.g. "Fideos con aceite de chile y cacahuete", not "Fideos con Aceite de Chile y Cacahuete"). Proper nouns stay capitalized. Include the leading "¡Polpette!" or similar prefix when present. Avoid splash labels like "Familia" — those go in `tags`.
 - `subtitle`: a short secondary line that complements the title (e.g. "con patatas al horno y salsa de yogur"). Always provide a subtitle. If the source has a separate subtitle, use it. Otherwise, split the full title: keep the dish name as `title` and move the accompaniments, sauce, or technique to `subtitle`. If the title is already short and cannot be split, write a brief phrase describing the main side, sauce, or cooking style (e.g. "al horno con verduras"). Never leave this null.
 - `description`: a short one- or two-sentence Spanish blurb. Use the source's intro text when available; otherwise summarize.
 - `servings`: integer. HelloFresh PDFs default to 2 unless they show a 4-person column; use the smaller value.
