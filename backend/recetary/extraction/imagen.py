@@ -26,57 +26,57 @@ STYLES: dict[str, dict[str, str]] = {
     "ghibli": {
         "label": "Ghibli",
         "prompt": (
-            "Painted in Studio Ghibli style with soft anime watercolor, "
-            "warm golden lighting and vibrant appetizing colors."
+            "Studio Ghibli anime watercolor painting of {dish}. "
+            "Soft warm golden lighting, vibrant appetizing colors. "
         ),
     },
     "realistic": {
         "label": "Realista",
         "prompt": (
-            "Professional food magazine photography with natural side lighting, "
-            "shallow depth of field and vibrant natural colors."
+            "Professional food magazine photograph of {dish}. "
+            "Natural side lighting, shallow depth of field, vibrant colors. "
         ),
     },
     "watercolor": {
         "label": "Acuarela clásica",
         "prompt": (
-            "Traditional watercolor illustration on textured paper with loose "
-            "visible brushstrokes, warm soft color palette, artisan cookbook style."
+            "Traditional watercolor illustration of {dish} on textured paper. "
+            "Loose visible brushstrokes, warm soft color palette, artisan cookbook style. "
         ),
     },
     "popart": {
         "label": "Pop Art",
         "prompt": (
-            "Pop art style with bold saturated flat colors, thick black comic-book "
-            "outlines, Ben-Day dot patterns."
+            "Pop art painting of {dish} with bold saturated flat colors, "
+            "thick black comic-book outlines, Ben-Day dot patterns. "
         ),
     },
     "minimal": {
         "label": "Minimalista",
         "prompt": (
-            "Minimalist flat design with simplified geometric shapes, "
-            "soft pastel colors and clean composition without textures."
+            "Minimalist flat design illustration of {dish}. "
+            "Simplified geometric shapes, soft pastel colors, clean composition. "
         ),
     },
     "pixel": {
         "label": "Pixel Art",
         "prompt": (
-            "Retro 16-bit pixel art style with visible pixels, "
-            "limited vibrant color palette, like a classic video game."
+            "16-bit pixel art of {dish} with visible pixels, "
+            "limited vibrant color palette, retro video game style. "
         ),
     },
 }
 
 DEFAULT_STYLE = "ghibli"
 
+# Style prompt already includes {dish} and the artistic direction up front,
+# so CLIP (77 tokens) always sees the style + dish within its window.
+# The frame adds scene/constraint details after.
 PROMPT_FRAME = (
-    "Close-up food photography of {dish}, "
-    "served on a rustic ceramic plate. "
-    "{style_prompt} "
-    "Focus entirely on the food — no people, no characters, no animals. "
-    "Detailed textures, steam rising, cozy blurred kitchen background. "
-    "The image must NOT contain any text, letters, words, numbers, "
-    "watermarks or typography of any kind."
+    "{style_prompt}"
+    "Served on a rustic ceramic plate. "
+    "Only food, no people, no animals, no text, no watermarks. "
+    "Detailed textures, steam rising, cozy blurred kitchen background."
 )
 
 
@@ -183,8 +183,8 @@ def _build_prompt(
         client, title, subtitle, description,
         reference_image_bytes, reference_mime_type,
     )
-    style_prompt = STYLES.get(style, STYLES[DEFAULT_STYLE])["prompt"]
-    return PROMPT_FRAME.format(dish=dish_en, style_prompt=style_prompt)
+    style_prompt = STYLES.get(style, STYLES[DEFAULT_STYLE])["prompt"].format(dish=dish_en)
+    return PROMPT_FRAME.format(style_prompt=style_prompt)
 
 
 def _is_daily_quota(exc: ClientError) -> bool:
