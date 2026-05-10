@@ -79,7 +79,10 @@ class RecipeDraft(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     title: str = Field(description="Full recipe title in Spanish")
-    subtitle: Optional[str] = Field(default=None)
+    subtitle: Optional[str] = Field(
+        default=None,
+        description="Short secondary line complementing the title; always generate one",
+    )
     source_ref: Optional[str] = Field(
         default=None,
         description="Original source URL or filename, set by the extract endpoint",
@@ -155,7 +158,7 @@ If an existing canonical ingredient list is provided in the user message, prefer
 # Other fields
 
 - `title`: the full elaborate Spanish title, including the leading "¡Polpette!" or similar prefix when present. Avoid splash labels like "Familia" — those go in `tags`.
-- `subtitle`: the secondary line under the title (e.g. "con patatas al horno"). Null if absent.
+- `subtitle`: a short secondary line that complements the title (e.g. "con patatas al horno y salsa de yogur"). Always provide a subtitle. If the source has a separate subtitle, use it. Otherwise, split the full title: keep the dish name as `title` and move the accompaniments, sauce, or technique to `subtitle`. If the title is already short and cannot be split, write a brief phrase describing the main side, sauce, or cooking style (e.g. "al horno con verduras"). Never leave this null.
 - `description`: a short one- or two-sentence Spanish blurb. Use the source's intro text when available; otherwise summarize.
 - `servings`: integer. HelloFresh PDFs default to 2 unless they show a 4-person column; use the smaller value.
 - `total_time_min`: total time including prep, in minutes. The HelloFresh "Listo en" value.

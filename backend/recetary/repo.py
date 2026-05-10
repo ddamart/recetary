@@ -206,6 +206,8 @@ def list_recipes(
 ) -> list[RecipeSummary]:
     if sort == "alpha":
         order = "r.title COLLATE NOCASE"
+    elif sort == "random":
+        order = "RANDOM()"
     else:
         order = "r.created_at DESC"
     if tag:

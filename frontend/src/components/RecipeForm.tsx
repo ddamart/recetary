@@ -509,9 +509,6 @@ export function RecipeForm({
   );
 }
 
-  );
-}
-
 function CommaSeparatedInput({
   value,
   onChange,
