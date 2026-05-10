@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import db
+from .extraction.common import load_dotenv_once
 from .routers import extract, ingredients, recipes, search
 
 app = FastAPI(title="Recetary", version="0.1.0")
@@ -41,6 +42,7 @@ def healthz() -> dict[str, str]:
 
 @app.get("/info")
 def info() -> dict[str, str]:
+    load_dotenv_once()
     backend = os.environ.get("EXTRACTOR_BACKEND", "claude").lower()
     image_backend = os.environ.get("IMAGE_BACKEND", "imagen").lower()
     return {"extractor_backend": backend, "image_backend": image_backend}

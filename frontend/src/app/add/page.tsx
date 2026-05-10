@@ -20,6 +20,10 @@ function isTwitterUrl(url: string): boolean {
   return /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url);
 }
 
+function isInstagramUrl(url: string): boolean {
+  return /instagram\.com\/(?:reel|reels|p)\/[\w-]+/.test(url);
+}
+
 export default function AddPage() {
   const router = useRouter();
   const [source, setSource] = useState<SourceKind>("pdf");
@@ -42,7 +46,7 @@ export default function AddPage() {
     api.getImageStyles().then(setImageStyles).catch(() => {});
   }, []);
 
-  const twitterBlocked = source === "video" && isTwitterUrl(url) && backend !== "gemini";
+  const videoBlocked = source === "video" && (isTwitterUrl(url) || isInstagramUrl(url)) && backend !== "gemini";
 
   const generateImage = useCallback(async (style: string) => {
     if (!draft) return;
@@ -217,11 +221,11 @@ export default function AddPage() {
               className="border border-border rounded-md p-2 text-sm focus:border-accent outline-none"
             />
             <span className="text-xs text-muted">
-              YouTube (subtítulos), Instagram (texto del post) y Twitter/X (vídeo)
+              YouTube (subtítulos), Instagram (vídeo) y Twitter/X (vídeo)
             </span>
-            {twitterBlocked && (
+            {videoBlocked && (
               <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
-                Los vídeos de Twitter/X requieren el backend Gemini.
+                Los vídeos de Twitter/X e Instagram requieren el backend Gemini.
                 El backend actual (Claude) no admite procesamiento de vídeo directo.
               </p>
             )}
@@ -246,7 +250,7 @@ export default function AddPage() {
         <button
           type="button"
           onClick={extract}
-          disabled={busy || twitterBlocked}
+          disabled={busy || videoBlocked}
           className="px-5 py-2 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-60"
         >
           {busy ? "Extrayendo..." : "Extraer →"}
