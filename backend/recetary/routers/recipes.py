@@ -36,9 +36,10 @@ def list_recipes(
     limit: int = Query(24, ge=1, le=100),
     offset: int = Query(0, ge=0),
     tag: Optional[str] = None,
+    sort: Optional[str] = Query(None, description="Sort order: 'recent' (default) or 'alpha'"),
 ) -> list[RecipeSummary]:
     with db.get_conn() as conn:
-        return repo.list_recipes(conn, limit=limit, offset=offset, tag=tag)
+        return repo.list_recipes(conn, limit=limit, offset=offset, tag=tag, sort=sort or "recent")
 
 
 @router.post("", response_model=Recipe, status_code=status.HTTP_201_CREATED)

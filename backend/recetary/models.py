@@ -88,6 +88,7 @@ class RecipeSummary(BaseModel):
     servings: Optional[int]
     ingredient_count: int
     tags: list[str]
+    created_at: str
 
 
 class RecipeMatch(RecipeSummary):

@@ -202,13 +202,17 @@ def list_recipes(
     limit: int = 24,
     offset: int = 0,
     tag: Optional[str] = None,
-    sort: str = "random",
+    sort: str = "recent",
 ) -> list[RecipeSummary]:
-    order = "RANDOM()" if sort == "random" else "r.created_at DESC"
+    if sort == "alpha":
+        order = "r.title COLLATE NOCASE"
+    else:
+        order = "r.created_at DESC"
     if tag:
         rows = conn.execute(
             f"""
             SELECT r.id, r.title, r.subtitle, r.image_path, r.total_time_min, r.servings,
+                   r.created_at,
                    (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) AS ic
             FROM recipes r
             JOIN tags t ON t.recipe_id = r.id
@@ -222,6 +226,7 @@ def list_recipes(
         rows = conn.execute(
             f"""
             SELECT r.id, r.title, r.subtitle, r.image_path, r.total_time_min, r.servings,
+                   r.created_at,
                    (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) AS ic
             FROM recipes r
             ORDER BY {order}
@@ -248,6 +253,7 @@ def list_recipes(
                 servings=int(r["servings"]),
                 ingredient_count=int(r["ic"]),
                 tags=tags,
+                created_at=r["created_at"],
             )
         )
     return summaries

@@ -79,6 +79,7 @@ export interface RecipeSummary {
   servings: number | null;
   ingredient_count: number;
   tags: string[];
+  created_at: string;
 }
 
 export interface RecipeMatch extends RecipeSummary {

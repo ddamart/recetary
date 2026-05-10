@@ -36,11 +36,12 @@ async function request<T>(
 }
 
 export const api = {
-  listRecipes: (params?: { limit?: number; offset?: number; tag?: string }) => {
+  listRecipes: (params?: { limit?: number; offset?: number; tag?: string; sort?: string }) => {
     const qs = new URLSearchParams();
     if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.offset) qs.set("offset", String(params.offset));
     if (params?.tag) qs.set("tag", params.tag);
+    if (params?.sort) qs.set("sort", params.sort);
     const q = qs.toString();
     return request<RecipeSummary[]>(`/recipes${q ? `?${q}` : ""}`);
   },

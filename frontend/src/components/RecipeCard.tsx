@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { imageUrl } from "@/lib/api";
-import { formatTime } from "@/lib/format";
+import { formatTime, formatDate } from "@/lib/format";
 import type { RecipeMatch, RecipeSummary } from "@/lib/types";
 
 interface Props {
@@ -43,6 +43,7 @@ export function RecipeCard({ recipe }: Props) {
         <div className="flex items-center gap-3 text-xs text-muted mt-auto pt-1">
           <span>⏱ {formatTime(recipe.total_time_min)}</span>
           <span>· {recipe.ingredient_count} ingredientes</span>
+          <span className="ml-auto">{formatDate(recipe.created_at)}</span>
         </div>
         {recipe.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">

@@ -19,6 +19,7 @@ export function SearchableHome({ initialRecipes }: Props) {
   const [hasMore, setHasMore] = useState(initialRecipes.length >= 12);
   const [hasQuery, setHasQuery] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [sort, setSort] = useState<"recent" | "alpha">("recent");
   const reqId = useRef(0);
   const lastQuery = useRef<{ q?: string; ingredients?: string[]; tag?: string }>({});
 
@@ -37,8 +38,20 @@ export function SearchableHome({ initialRecipes }: Props) {
       };
 
       if (isEmpty) {
-        setResults(initialRecipes);
-        setHasMore(initialRecipes.length >= 12);
+        // Re-fetch with current sort so order is correct
+        const id = ++reqId.current;
+        try {
+          const data = await api.listRecipes({ limit: 12, sort });
+          if (id === reqId.current) {
+            setResults(data);
+            setHasMore(data.length >= 12);
+          }
+        } catch {
+          if (id === reqId.current) {
+            setResults(initialRecipes);
+            setHasMore(initialRecipes.length >= 12);
+          }
+        }
         setSearching(false);
         return;
       }
@@ -48,6 +61,7 @@ export function SearchableHome({ initialRecipes }: Props) {
       try {
         const data = await api.search({
           ...lastQuery.current,
+          sort,
           limit: PAGE_SIZE,
           offset: 0,
         });
@@ -66,8 +80,27 @@ export function SearchableHome({ initialRecipes }: Props) {
         }
       }
     },
-    [initialRecipes],
+    [initialRecipes, sort],
   );
+
+  // Re-fetch when sort order changes
+  useEffect(() => {
+    const id = ++reqId.current;
+    if (hasQuery) {
+      api.search({ ...lastQuery.current, sort, limit: PAGE_SIZE, offset: 0 })
+        .then((data) => {
+          if (id === reqId.current) { setResults(data); setHasMore(data.length >= PAGE_SIZE); }
+        })
+        .catch(() => {});
+    } else {
+      api.listRecipes({ limit: 12, sort })
+        .then((data) => {
+          if (id === reqId.current) { setResults(data); setHasMore(data.length >= 12); }
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort]);
 
   async function loadMore() {
     setLoadingMore(true);
@@ -75,6 +108,7 @@ export function SearchableHome({ initialRecipes }: Props) {
       if (hasQuery) {
         const data = await api.search({
           ...lastQuery.current,
+          sort,
           limit: PAGE_SIZE,
           offset: results.length,
         });
@@ -83,6 +117,7 @@ export function SearchableHome({ initialRecipes }: Props) {
       } else {
         const data = await api.listRecipes({
           limit: 12,
+          sort,
           offset: results.length,
         });
         setResults((prev) => [...prev, ...data]);
@@ -113,7 +148,25 @@ export function SearchableHome({ initialRecipes }: Props) {
               <span className="ml-2 text-sm font-normal text-muted">buscando...</span>
             )}
           </h2>
-          <span className="text-xs text-muted">{results.length} mostradas</span>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-md border border-border text-xs overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSort("recent")}
+                className={`px-2.5 py-1 transition ${sort === "recent" ? "bg-accent text-white" : "hover:bg-accent-soft"}`}
+              >
+                Recientes
+              </button>
+              <button
+                type="button"
+                onClick={() => setSort("alpha")}
+                className={`px-2.5 py-1 transition ${sort === "alpha" ? "bg-accent text-white" : "hover:bg-accent-soft"}`}
+              >
+                A–Z
+              </button>
+            </div>
+            <span className="text-xs text-muted">{results.length} mostradas</span>
+          </div>
         </div>
         {results.length === 0 ? (
           <p className="text-sm text-muted">

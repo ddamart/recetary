@@ -2,7 +2,7 @@ import { api } from "@/lib/api";
 import { SearchableHome } from "@/components/SearchableHome";
 
 export default async function HomePage() {
-  const recipes = await api.listRecipes({ limit: 12 }).catch(() => []);
+  const recipes = await api.listRecipes({ limit: 12, sort: "recent" }).catch(() => []);
 
   return (
     <div className="flex flex-col gap-12">

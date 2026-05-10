@@ -309,6 +309,7 @@ def _hydrate_match(
     row = conn.execute(
         """
         SELECT r.id, r.title, r.subtitle, r.image_path, r.total_time_min, r.servings,
+               r.created_at,
                (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) AS ic
         FROM recipes r WHERE r.id = ?
         """,
@@ -344,6 +345,7 @@ def _hydrate_match(
         servings=int(row["servings"]) if row["servings"] is not None else None,
         ingredient_count=int(row["ic"]),
         tags=tags,
+        created_at=row["created_at"],
         matched_ingredients=matched_names,
         missing_ingredients=missing,
     )
