@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CATEGORY_LABEL_ES,
   type IngredientCategory,
@@ -88,9 +88,10 @@ export function RecipeForm({
     };
   }, [refPreviewUrl]);
 
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      if (!onReferenceImageChange) return;
+  // Global paste handler — works regardless of which element has focus
+  useEffect(() => {
+    if (!onReferenceImageChange) return;
+    function handlePaste(e: ClipboardEvent) {
       const items = e.clipboardData?.items;
       if (!items) return;
       for (const item of items) {
@@ -103,9 +104,10 @@ export function RecipeForm({
           }
         }
       }
-    },
-    [onReferenceImageChange],
-  );
+    }
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [onReferenceImageChange]);
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl relative">
@@ -155,11 +157,7 @@ export function RecipeForm({
         </div>
         {/* Reference image upload / paste */}
         {onReferenceImageChange && (
-          <div
-            onPaste={handlePaste}
-            tabIndex={0}
-            className="flex items-center gap-3"
-          >
+          <div className="flex items-center gap-3">
             {refPreviewUrl ? (
               <>
                 <img
