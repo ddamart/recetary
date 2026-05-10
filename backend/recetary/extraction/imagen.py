@@ -26,8 +26,10 @@ STYLES: dict[str, dict[str, str]] = {
     "ghibli": {
         "label": "Ghibli",
         "prompt": (
-            "Studio Ghibli anime watercolor painting of {dish}. "
-            "Soft warm golden lighting, vibrant appetizing colors. "
+            "Studio Ghibli anime cel-shaded illustration of {dish}. "
+            "Clean dark outlines, soft warm golden light from a window, "
+            "muted warm color palette, wooden table, detailed cozy kitchen "
+            "background with shelves, pots and utensils. "
         ),
     },
     "realistic": {
