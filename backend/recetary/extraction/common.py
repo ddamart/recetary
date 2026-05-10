@@ -80,6 +80,10 @@ class RecipeDraft(BaseModel):
 
     title: str = Field(description="Full recipe title in Spanish")
     subtitle: Optional[str] = Field(default=None)
+    source_ref: Optional[str] = Field(
+        default=None,
+        description="Original source URL or filename, set by the extract endpoint",
+    )
     description: Optional[str] = Field(
         default=None, description="One- or two-sentence summary in Spanish"
     )
