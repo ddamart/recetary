@@ -17,16 +17,34 @@ def _get_url() -> str:
     return os.environ.get("LOCAL_FLUX_URL", DEFAULT_URL)
 
 
-def generate(prompt: str) -> bytes:
-    """Generate an image via the local FLUX server. Returns PNG bytes."""
+def generate(prompt: str, reference_image_bytes: bytes | None = None) -> bytes:
+    """Generate an image via the local FLUX server. Returns PNG bytes.
+
+    When *reference_image_bytes* is provided, uses the img2img endpoint
+    so the reference image conditions the generation (preserving composition
+    while applying the styled prompt).
+    """
     url = _get_url()
 
     try:
-        resp = httpx.post(
-            f"{url}/generate",
-            json={"prompt": prompt, "width": 1024, "height": 768},
-            timeout=TIMEOUT,
-        )
+        if reference_image_bytes:
+            resp = httpx.post(
+                f"{url}/img2img",
+                data={
+                    "prompt": prompt,
+                    "width": 1024,
+                    "height": 768,
+                    "strength": 0.65,
+                },
+                files={"image": ("reference.jpg", reference_image_bytes, "image/jpeg")},
+                timeout=TIMEOUT,
+            )
+        else:
+            resp = httpx.post(
+                f"{url}/generate",
+                json={"prompt": prompt, "width": 1024, "height": 768},
+                timeout=TIMEOUT,
+            )
     except httpx.ConnectError as e:
         raise ImageGenerationError(
             f"Local FLUX server not reachable at {url}. "

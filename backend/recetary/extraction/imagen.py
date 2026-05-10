@@ -258,7 +258,7 @@ def get_image_backend() -> str:
     return os.environ.get("IMAGE_BACKEND", "imagen").lower()
 
 
-def _call_backend(prompt: str) -> bytes:
+def _call_backend(prompt: str, reference_image_bytes: bytes | None = None) -> bytes:
     """Dispatch image generation to the configured backend."""
     backend = get_image_backend()
 
@@ -268,7 +268,7 @@ def _call_backend(prompt: str) -> bytes:
 
     if backend == "local":
         from .image_backends.local_flux import generate
-        return generate(prompt)
+        return generate(prompt, reference_image_bytes)
 
     if backend == "imagen":
         api_key = _get_api_key()
@@ -303,4 +303,4 @@ def generate_recipe_image(
         client, title, subtitle, description, style,
         reference_image_bytes, reference_mime_type,
     )
-    return _call_backend(prompt)
+    return _call_backend(prompt, reference_image_bytes)
