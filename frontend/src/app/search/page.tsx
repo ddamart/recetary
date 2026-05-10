@@ -54,6 +54,14 @@ export default async function SearchPage(
 
   const noFilters = !q && ingredients.length === 0;
 
+  // Sort toggle URLs
+  const sortParams = (s: string) => {
+    const p = new URLSearchParams(baseParams);
+    p.set("sort", s);
+    p.delete("page");
+    return `/search?${p.toString()}`;
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {!isAlpha && (
@@ -71,9 +79,25 @@ export default async function SearchPage(
             </span>
           )}
         </h2>
-        <Link href="/" className="text-sm text-accent hover:underline">
-          ← Inicio
-        </Link>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-md border border-border text-xs overflow-hidden">
+            <Link
+              href={sortParams("recent")}
+              className={`px-2.5 py-1 transition ${sort !== "alpha" ? "bg-accent text-white" : "hover:bg-accent-soft"}`}
+            >
+              Recientes
+            </Link>
+            <Link
+              href={sortParams("alpha")}
+              className={`px-2.5 py-1 transition ${sort === "alpha" ? "bg-accent text-white" : "hover:bg-accent-soft"}`}
+            >
+              A–Z
+            </Link>
+          </div>
+          <Link href="/" className="text-sm text-accent hover:underline">
+            ← Inicio
+          </Link>
+        </div>
       </div>
 
       {results.length === 0 && page === 1 ? (

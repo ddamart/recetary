@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CATEGORY_LABEL_ES,
   type IngredientCategory,
@@ -457,31 +457,17 @@ export function RecipeForm({
       </section>
 
       <Field label="Utensilios (separados por coma)">
-        <input
-          value={draft.utensils.join(", ")}
-          onChange={(e) =>
-            patch({
-              utensils: e.target.value
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean),
-            })
-          }
+        <CommaSeparatedInput
+          value={draft.utensils}
+          onChange={(utensils) => patch({ utensils })}
           className="input"
         />
       </Field>
 
       <Field label="Tags (separados por coma)">
-        <input
-          value={draft.tags.join(", ")}
-          onChange={(e) =>
-            patch({
-              tags: e.target.value
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean),
-            })
-          }
+        <CommaSeparatedInput
+          value={draft.tags}
+          onChange={(tags) => patch({ tags })}
           className="input"
         />
       </Field>
@@ -520,6 +506,44 @@ export function RecipeForm({
         </button>
       </div>
     </div>
+  );
+}
+
+  );
+}
+
+function CommaSeparatedInput({
+  value,
+  onChange,
+  className,
+}: {
+  value: string[];
+  onChange: (items: string[]) => void;
+  className?: string;
+}) {
+  const [raw, setRaw] = useState(value.join(", "));
+  // Sync from external changes (e.g. initial load)
+  const prevValue = useRef(value);
+  useEffect(() => {
+    if (prevValue.current !== value) {
+      prevValue.current = value;
+      setRaw(value.join(", "));
+    }
+  }, [value]);
+
+  function commit(text: string) {
+    const items = text.split(",").map((s) => s.trim()).filter(Boolean);
+    prevValue.current = items;
+    onChange(items);
+  }
+
+  return (
+    <input
+      value={raw}
+      onChange={(e) => setRaw(e.target.value)}
+      onBlur={(e) => commit(e.target.value)}
+      className={className}
+    />
   );
 }
 
