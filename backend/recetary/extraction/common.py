@@ -149,7 +149,7 @@ If an existing canonical ingredient list is provided in the user message, prefer
 # Steps
 
 - Preserve order. Each step is one StepDraft.
-- `title`: the short bold heading from the source (e.g. "Hornea las patatas"). Optional if the source has no headings.
+- `title`: a short heading summarizing the main action of the step (e.g. "Hornea las patatas", "Prepara las verduras", "Monta la lasaña"). Use the source's heading if one exists; otherwise generate a concise one yourself. Always provide a title.
 - `text`: full body of the step in Spanish, complete sentences. Do not abbreviate or summarize aggressively, but you may drop redundant exhortations like "¡Que aproveche!" if they are not part of the instructions.
 
 # Other fields
