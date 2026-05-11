@@ -144,7 +144,21 @@ class GeminiExtractor:
 
         parts.append(
             types.Part.from_text(
-                text="Extract the recipe from the video above into the structured schema."
+                text=(
+                    "Extract the recipe from the video above into the structured schema.\n\n"
+                    "IMPORTANT — video extraction rules:\n"
+                    "- Watch every frame carefully. Describe what you actually SEE happening, "
+                    "not what you assume from the dish name.\n"
+                    "- Ingredients: list ONLY what appears on screen or is mentioned. If a "
+                    "product is used as a substitute (e.g. gyoza wrappers instead of lasagna "
+                    "sheets), name the actual product used, not the traditional one.\n"
+                    "- Steps: follow the chronological order of the video. Every visible action "
+                    "(mixing, cutting, layering, cooking) must be its own step. Do NOT skip or "
+                    "merge steps. Do NOT invent steps that are not shown.\n"
+                    "- If on-screen text shows quantities or instructions, use those exact values.\n"
+                    "- If the video has no spoken narration, rely entirely on the visuals and "
+                    "any overlaid text."
+                )
             )
         )
 
@@ -172,26 +186,38 @@ class GeminiExtractor:
         canonical_ingredients: Iterable[str] = (),
         max_tokens: int = 8192,
     ) -> RecipeDraft:
-        """Extract a recipe from raw video bytes (e.g. Twitter/X videos).
-
-        Sends the video inline via Part.from_bytes() for Gemini to process
-        the visual and audio content directly.
-        """
+        """Extract a recipe from raw video bytes (Instagram reels, Twitter videos)."""
         preamble = build_canonical_preamble(canonical_ingredients)
         parts: list[types.Part] = [types.Part.from_text(text=preamble)]
 
-        parts.append(types.Part.from_bytes(data=video_bytes, mime_type=video_mime_type))
+        parts.append(
+            types.Part.from_bytes(data=video_bytes, mime_type=video_mime_type)
+        )
 
-        if supplementary_text and supplementary_text.strip():
+        if supplementary_text:
             parts.append(
                 types.Part.from_text(
-                    text=f"Additional context (tweet/post text):\n\n{supplementary_text.strip()}"
+                    text=f"Post caption / description (for reference):\n\n{supplementary_text.strip()}"
                 )
             )
 
         parts.append(
             types.Part.from_text(
-                text="Extract the recipe from the video above into the structured schema."
+                text=(
+                    "Extract the recipe from the video above into the structured schema.\n\n"
+                    "IMPORTANT — video extraction rules:\n"
+                    "- Watch every frame carefully. Describe what you actually SEE happening, "
+                    "not what you assume from the dish name.\n"
+                    "- Ingredients: list ONLY what appears on screen or is mentioned. If a "
+                    "product is used as a substitute (e.g. gyoza wrappers instead of lasagna "
+                    "sheets), name the actual product used, not the traditional one.\n"
+                    "- Steps: follow the chronological order of the video. Every visible action "
+                    "(mixing, cutting, layering, cooking) must be its own step. Do NOT skip or "
+                    "merge steps. Do NOT invent steps that are not shown.\n"
+                    "- If on-screen text shows quantities or instructions, use those exact values.\n"
+                    "- If the video has no spoken narration, rely entirely on the visuals and "
+                    "any overlaid text."
+                )
             )
         )
 

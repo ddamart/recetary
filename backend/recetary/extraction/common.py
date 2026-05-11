@@ -112,7 +112,7 @@ class RecipeDraft(BaseModel):
 
 SYSTEM_INSTRUCTIONS = """You are a culinary data extractor for a personal recipe collection.
 
-Your task is to read a recipe — supplied as a PDF document, an image, plain text, or web-article text — and return a fully populated Recipe object that conforms to the provided JSON schema.
+Your task is to read a recipe — supplied as a PDF document, an image, plain text, web-article text, or a video — and return a fully populated Recipe object that conforms to the provided JSON schema.
 
 # Language
 
