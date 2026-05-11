@@ -33,6 +33,12 @@ export default function RootLayout({
                 Todas
               </Link>
               <Link
+                href="/style-picker"
+                className="px-3 py-1.5 rounded-md border border-border hover:bg-accent-soft hover:border-accent transition"
+              >
+                Estilos
+              </Link>
+              <Link
                 href="/add"
                 className="px-3 py-1.5 rounded-md border border-border hover:bg-accent-soft hover:border-accent transition"
               >
