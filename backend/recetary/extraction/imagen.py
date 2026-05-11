@@ -8,13 +8,38 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import time
+from pathlib import Path
 
 from google import genai
 from google.genai import types
 from google.genai.errors import ClientError
 
 from .common import load_dotenv_once
+
+# Root of the repository (backends/recetary/extraction/imagen.py → 3 levels up)
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Reference images that define the ghibli-new visual style.
+# One is picked at random per generation and used as an img2img seed so FLUX
+# inherits the composition, palette, and kitchen setting without copying content.
+_GHIBLI_REF_IDS = [
+    "7767a6b5-539e-4bff-8822-1678d4fb7480",
+    "1f078202-0c52-424c-9522-75318426a899",
+    "9fa48ec3-01a0-4beb-a55f-9bcb49735a25",
+    "fb8379dd-cb53-4f83-a4bd-89c6fe5dabed",
+    "1b2a0ee1-6ea1-4ef0-94c2-3fe8bc524057",
+    "e93367a3-8b36-4615-a919-83833fb9c559",
+    "bca663be-1024-47be-9bc2-45b8a1862dbf",
+    "67d390a8-980c-4fc9-a9d8-1d12c50d7699",
+    "8b50f3ad-e189-4018-aaf5-a005557be561",
+    "9e333a8f-0ca3-493c-83b8-8891d0f2519f",
+    "72484c04-0778-4ee7-8357-f794b98ff474",
+    "29d0571a-ece1-4b16-9963-5457be3a0fc9",
+]
+_GHIBLI_STYLE_STRENGTH = 0.85   # high noise → content from prompt, palette from reference
+_GHIBLI_STYLE_STEPS = 16        # effective denoising steps ≈ 16 × 0.85 ≈ 14
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +111,17 @@ PROMPT_FRAME = (
     "Only food, no people, no animals, no text, no watermarks. "
     "Detailed textures, steam rising, cozy blurred kitchen background."
 )
+
+
+def _load_random_ghibli_ref() -> bytes | None:
+    """Return PNG bytes of a randomly chosen ghibli-new reference image, or None."""
+    ref_id = random.choice(_GHIBLI_REF_IDS)
+    path = _REPO_ROOT / "data" / "images" / f"{ref_id}.png"
+    if path.exists():
+        logger.debug("Using ghibli-new style reference: %s", ref_id)
+        return path.read_bytes()
+    logger.warning("Style reference not found: %s", path)
+    return None
 
 
 class ImageGenerationError(RuntimeError):
@@ -266,8 +302,16 @@ def get_image_backend() -> str:
     return os.environ.get("IMAGE_BACKEND", "imagen").lower()
 
 
-def _call_backend(prompt: str, reference_image_bytes: bytes | None = None) -> bytes:
-    """Dispatch image generation to the configured backend."""
+def _call_backend(
+    prompt: str,
+    reference_image_bytes: bytes | None = None,
+    strength: float = 0.65,
+    num_steps: int = 8,
+) -> bytes:
+    """Dispatch image generation to the configured backend.
+
+    *strength* and *num_steps* are forwarded to the local FLUX backend only.
+    """
     backend = get_image_backend()
 
     if backend == "together":
@@ -276,7 +320,7 @@ def _call_backend(prompt: str, reference_image_bytes: bytes | None = None) -> by
 
     if backend == "local":
         from .image_backends.local_flux import generate
-        return generate(prompt, reference_image_bytes)
+        return generate(prompt, reference_image_bytes, strength=strength, num_steps=num_steps)
 
     if backend == "imagen":
         api_key = _get_api_key()
@@ -302,13 +346,33 @@ def generate_recipe_image(
     When *reference_image_bytes* is provided, Gemini Flash analyses the photo
     to produce a more accurate visual description before passing it to Imagen.
 
+    For the ``ghibli-new`` style with no user-provided reference, a random
+    image from the curated style references is used as an img2img seed so the
+    local FLUX model inherits the palette and composition of that style.
+
     Returns raw PNG bytes. Retries on rate-limit (429) errors.
     Raises ImageGenerationError on failure.
     """
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
+
+    # Translation uses the user's food photo (if any) — never the style ref.
     prompt = _build_prompt(
         client, title, subtitle, description, style,
         reference_image_bytes, reference_mime_type,
     )
+
+    # ghibli-new: when the user hasn't provided their own photo, seed img2img
+    # with a randomly chosen style reference so FLUX picks up the kitchen
+    # setting, plate composition, and warm palette of the target style.
+    if style == "ghibli-new" and reference_image_bytes is None:
+        style_ref = _load_random_ghibli_ref()
+        if style_ref:
+            return _call_backend(
+                prompt,
+                style_ref,
+                strength=_GHIBLI_STYLE_STRENGTH,
+                num_steps=_GHIBLI_STYLE_STEPS,
+            )
+
     return _call_backend(prompt, reference_image_bytes)

@@ -10,6 +10,7 @@ from ..imagen import ImageGenerationError
 
 DEFAULT_URL = "http://localhost:8500"
 TIMEOUT = 120  # local generation can take 15s+; generous timeout
+DEFAULT_STEPS = 8  # schnell: quality improves meaningfully 4→8, diminishing returns beyond
 
 
 def _get_url() -> str:
@@ -17,12 +18,18 @@ def _get_url() -> str:
     return os.environ.get("LOCAL_FLUX_URL", DEFAULT_URL)
 
 
-def generate(prompt: str, reference_image_bytes: bytes | None = None) -> bytes:
+def generate(
+    prompt: str,
+    reference_image_bytes: bytes | None = None,
+    strength: float = 0.65,
+    num_steps: int = DEFAULT_STEPS,
+) -> bytes:
     """Generate an image via the local FLUX server. Returns PNG bytes.
 
-    When *reference_image_bytes* is provided, uses the img2img endpoint
-    so the reference image conditions the generation (preserving composition
-    while applying the styled prompt).
+    When *reference_image_bytes* is provided, uses the img2img endpoint.
+    *strength* controls how much the reference conditions the output
+    (0 = copy reference, 1 = ignore it entirely).
+    *num_steps* is passed directly to num_inference_steps on the server.
     """
     url = _get_url()
 
@@ -34,7 +41,8 @@ def generate(prompt: str, reference_image_bytes: bytes | None = None) -> bytes:
                     "prompt": prompt,
                     "width": 1024,
                     "height": 768,
-                    "strength": 0.65,
+                    "num_inference_steps": num_steps,
+                    "strength": strength,
                 },
                 files={"image": ("reference.jpg", reference_image_bytes, "image/jpeg")},
                 timeout=TIMEOUT,
@@ -42,7 +50,12 @@ def generate(prompt: str, reference_image_bytes: bytes | None = None) -> bytes:
         else:
             resp = httpx.post(
                 f"{url}/generate",
-                json={"prompt": prompt, "width": 1024, "height": 768},
+                json={
+                    "prompt": prompt,
+                    "width": 1024,
+                    "height": 768,
+                    "num_inference_steps": num_steps,
+                },
                 timeout=TIMEOUT,
             )
     except httpx.ConnectError as e:
