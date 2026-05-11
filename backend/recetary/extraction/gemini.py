@@ -22,6 +22,25 @@ from .common import (
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 
+_VIDEO_EXTRACTION_PROMPT = (
+    "Extract the recipe from the video above into the structured schema.\n\n"
+    "IMPORTANT — video extraction rules:\n"
+    "- Watch every frame carefully. Describe what you actually SEE happening, "
+    "not what you assume from the dish name or the caption.\n"
+    "- Social media captions often use catchy or simplified names (e.g. "
+    "'gyoza lasagna'). Do NOT take the caption literally — identify what is "
+    "actually used in the video (e.g. wonton wrappers, not actual gyozas).\n"
+    "- Ingredients: list ONLY what appears on screen or is mentioned. If a "
+    "product is used as a substitute (e.g. gyoza wrappers instead of lasagna "
+    "sheets), name the actual product used, not the traditional one.\n"
+    "- Steps: follow the chronological order of the video. Every visible action "
+    "(mixing, cutting, layering, cooking) must be its own step. Do NOT skip or "
+    "merge steps. Do NOT invent steps that are not shown.\n"
+    "- If on-screen text shows quantities or instructions, use those exact values.\n"
+    "- If the video has no spoken narration, rely entirely on the visuals and "
+    "any overlaid text."
+)
+
 
 class GeminiExtractor:
     def __init__(self, *, model: str = DEFAULT_MODEL) -> None:
@@ -142,25 +161,7 @@ class GeminiExtractor:
                 )
             )
 
-        parts.append(
-            types.Part.from_text(
-                text=(
-                    "Extract the recipe from the video above into the structured schema.\n\n"
-                    "IMPORTANT — video extraction rules:\n"
-                    "- Watch every frame carefully. Describe what you actually SEE happening, "
-                    "not what you assume from the dish name.\n"
-                    "- Ingredients: list ONLY what appears on screen or is mentioned. If a "
-                    "product is used as a substitute (e.g. gyoza wrappers instead of lasagna "
-                    "sheets), name the actual product used, not the traditional one.\n"
-                    "- Steps: follow the chronological order of the video. Every visible action "
-                    "(mixing, cutting, layering, cooking) must be its own step. Do NOT skip or "
-                    "merge steps. Do NOT invent steps that are not shown.\n"
-                    "- If on-screen text shows quantities or instructions, use those exact values.\n"
-                    "- If the video has no spoken narration, rely entirely on the visuals and "
-                    "any overlaid text."
-                )
-            )
-        )
+        parts.append(types.Part.from_text(text=_VIDEO_EXTRACTION_PROMPT))
 
         schema = RecipeDraft.model_json_schema()
 
@@ -197,29 +198,15 @@ class GeminiExtractor:
         if supplementary_text:
             parts.append(
                 types.Part.from_text(
-                    text=f"Post caption / description (for reference):\n\n{supplementary_text.strip()}"
+                    text=(
+                        "Post caption (may be informal/inaccurate — always trust the "
+                        "video over the caption for ingredient names and steps):\n\n"
+                        + supplementary_text.strip()
+                    )
                 )
             )
 
-        parts.append(
-            types.Part.from_text(
-                text=(
-                    "Extract the recipe from the video above into the structured schema.\n\n"
-                    "IMPORTANT — video extraction rules:\n"
-                    "- Watch every frame carefully. Describe what you actually SEE happening, "
-                    "not what you assume from the dish name.\n"
-                    "- Ingredients: list ONLY what appears on screen or is mentioned. If a "
-                    "product is used as a substitute (e.g. gyoza wrappers instead of lasagna "
-                    "sheets), name the actual product used, not the traditional one.\n"
-                    "- Steps: follow the chronological order of the video. Every visible action "
-                    "(mixing, cutting, layering, cooking) must be its own step. Do NOT skip or "
-                    "merge steps. Do NOT invent steps that are not shown.\n"
-                    "- If on-screen text shows quantities or instructions, use those exact values.\n"
-                    "- If the video has no spoken narration, rely entirely on the visuals and "
-                    "any overlaid text."
-                )
-            )
-        )
+        parts.append(types.Part.from_text(text=_VIDEO_EXTRACTION_PROMPT))
 
         schema = RecipeDraft.model_json_schema()
 
