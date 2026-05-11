@@ -38,7 +38,7 @@ _GHIBLI_REF_IDS = [
     "72484c04-0778-4ee7-8357-f794b98ff474",
     "29d0571a-ece1-4b16-9963-5457be3a0fc9",
 ]
-_GHIBLI_STYLE_STRENGTH = 0.85   # high noise → content from prompt, palette from reference
+_GHIBLI_STYLE_STRENGTH = 0.90   # high noise → content from prompt, palette from reference
 _GHIBLI_STYLE_STEPS = 16        # effective denoising steps ≈ 16 × 0.85 ≈ 14
 
 logger = logging.getLogger(__name__)
