@@ -13,7 +13,7 @@ from ..extraction.imagen import STYLES, generate_recipe_image
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/style-variants", tags=["style-variants"])
 
-VARIANTS_PER_STYLE = 5
+VARIANTS_PER_STYLE = 10
 
 _state: dict = {
     "running": False,
