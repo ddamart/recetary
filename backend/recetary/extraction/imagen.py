@@ -37,9 +37,20 @@ _GHIBLI_REF_IDS = [
     "9e333a8f-0ca3-493c-83b8-8891d0f2519f",
     "72484c04-0778-4ee7-8357-f794b98ff474",
     "29d0571a-ece1-4b16-9963-5457be3a0fc9",
+    "7f8128f2-7217-430d-b468-38fa6b1a5259",
+    "ee03a7fb-aff3-4f05-be08-a4d7b2e217ee",
+    "5c3f63f6-6d94-4b60-ac83-923e346399e5",
+    "0e074c2d-d9e0-4e9c-86f8-8b663b12ea3e",
+    "7df3654d-9094-4c2c-9eaf-707b94d7f5ff",
+    "6f555759-6b58-4e3e-8aac-f77c0a04242c",
+    "a28b6463-63e9-4cce-afab-8e615f4f59a4",
+    "c21bba4c-8a46-4d17-9f2a-95f2036bd7e3",
+    "56dac718-5ac3-4f25-a07a-b81bc23059dc",
+    "ae2d6afb-f7d8-4ef9-8f0c-2f4e3f162990",
+    "552dd2bd-a2c9-47d2-b8c3-d4d04ef4321d",
 ]
-_GHIBLI_STYLE_STRENGTH = 0.90   # high noise → content from prompt, palette from reference
-_GHIBLI_STYLE_STEPS = 16        # effective denoising steps ≈ 16 × 0.85 ≈ 14
+
+_GHIBLI_STYLE_STRENGTH = 0.87   # high noise → content from prompt, palette from reference
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +66,20 @@ STYLES: dict[str, dict[str, str]] = {
             "Clean dark outlines, soft warm golden light from a window, "
         ),
     },
-    "ghibli-new": {
-        "label": "Anime Moderno",
+    "ghibli-3": {
+        "label": "Ghibli Sky",
         "prompt": (
-            "Anime food illustration of {dish}. "
+            "ghibsky illustration of {dish}. "
+            "Hand-painted Ghibli-inspired art style, lush natural scenery, atmospheric sky, "
+            "soft warm cinematic lighting, nostalgic and whimsical aesthetic. "
+        ),
+    },
+    "ghibli-new": {
+        "label": "Ghibli 2.0",
+        "prompt": (
+            "Ghibli art style illustration of {dish}. "
+            "Hand-painted gouache background, lush scenery, soft cinematic lighting, nostalgic atmosphere, high detail, vibrant but natural colors, whimsical aesthetic, inspired by Hayao Miyazaki and Kazuo Oga."
             "Wooden table surface, warm home kitchen stove and shelves softly blurred in background. "
-            "Warm natural side lighting, clean sharp anime outlines, vivid appetizing colors. "
         ),
     },
     "realistic": {
@@ -362,17 +381,28 @@ def generate_recipe_image(
         reference_image_bytes, reference_mime_type,
     )
 
+    # ghibli-3 uses the flux-ghibsky-illustration LoRA — local backend only.
+    if style == "ghibli-3":
+        from .image_backends.local_flux import generate_with_lora
+        return generate_with_lora(
+            prompt,
+            lora_repo="aleksa-codes/flux-ghibsky-illustration",
+        )
+
     # ghibli-new: when the user hasn't provided their own photo, seed img2img
     # with a randomly chosen style reference so FLUX picks up the kitchen
     # setting, plate composition, and warm palette of the target style.
-    if style == "ghibli-new" and reference_image_bytes is None:
+    if ( style == "ghibli-new" or style == "ghibli" ) and reference_image_bytes is None:
         style_ref = _load_random_ghibli_ref()
         if style_ref:
             return _call_backend(
                 prompt,
                 style_ref,
                 strength=_GHIBLI_STYLE_STRENGTH,
-                num_steps=_GHIBLI_STYLE_STEPS,
             )
 
-    return _call_backend(prompt, reference_image_bytes)
+    return _call_backend(
+        prompt,
+        reference_image_bytes,
+            strength=_GHIBLI_STYLE_STRENGTH,
+        )
