@@ -189,7 +189,7 @@ def _fetch_instagram(shortcode: str) -> VideoContent:
     with tempfile.TemporaryDirectory() as tmpdir:
         outtmpl = str(Path(tmpdir) / "%(id)s.%(ext)s")
         ydl_opts = {
-            "format": "best[ext=mp4]/best",
+            "format": "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best",
             "outtmpl": outtmpl,
             "noplaylist": True,
             "quiet": True,
@@ -314,7 +314,7 @@ def _fetch_twitter(status_id: str) -> VideoContent:
     with tempfile.TemporaryDirectory() as tmpdir:
         outtmpl = str(Path(tmpdir) / "%(id)s.%(ext)s")
         ydl_opts = {
-            "format": "best[ext=mp4]/best",
+            "format": "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best",
             "outtmpl": outtmpl,
             "noplaylist": True,
             "quiet": True,
