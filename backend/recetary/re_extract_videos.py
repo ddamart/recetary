@@ -59,8 +59,23 @@ def _list_video_recipes(recipe_id: Optional[str] = None) -> list[dict]:
 
 
 def _re_extract_one(extractor, source_ref: str, canonical: list[str]):
-    """Run extraction pipeline for a video URL. Returns RecipeDraft."""
+    """Run extraction pipeline for a video URL. Returns (RecipeDraft, fetch_secs, extract_secs)."""
+    t0 = time.perf_counter()
     content = video_io.fetch_video_content(source_ref)
+    fetch_secs = time.perf_counter() - t0
+
+    platform = content.platform or "unknown"
+    if content.video_bytes:
+        content_desc = f"video bytes ({len(content.video_bytes) // 1024} KB)"
+    elif content.text:
+        content_desc = f"text ({len(content.text)} chars)"
+        if content.thumbnail_bytes:
+            content_desc += " + thumbnail"
+    else:
+        content_desc = "empty"
+    print(f"    · fetch OK [{platform}] {content_desc} in {fetch_secs:.1f}s")
+
+    t1 = time.perf_counter()
 
     if content.video_bytes:
         # Instagram / Twitter with downloaded video — needs Gemini
@@ -69,32 +84,37 @@ def _re_extract_one(extractor, source_ref: str, canonical: list[str]):
                 "Video bytes extraction requires the Gemini backend "
                 "(set EXTRACTOR_BACKEND=gemini)"
             )
+        print("    · extrayendo vía video bytes (Gemini)")
         draft = extractor.extract_video_bytes(
             video_bytes=content.video_bytes,
             video_mime_type=content.video_mime_type,
             supplementary_text=content.text,
             canonical_ingredients=canonical,
         )
-        return draft
+        return draft, fetch_secs, time.perf_counter() - t1
 
     # YouTube: prefer native Gemini video URL, fall back to transcript text
     if hasattr(extractor, "extract_video_url") and content.platform == "youtube":
         try:
-            return extractor.extract_video_url(
+            print("    · extrayendo vía URL nativa de YouTube (Gemini)")
+            draft = extractor.extract_video_url(
                 video_url=content.source_url,
                 transcript_text=content.text,
                 canonical_ingredients=canonical,
             )
-        except Exception:
-            pass  # fall through to text-based extraction
+            return draft, fetch_secs, time.perf_counter() - t1
+        except Exception as e:
+            print(f"    · URL nativa falló ({e!r}), cayendo a texto")
 
-    return extractor.extract(
+    print("    · extrayendo vía texto + thumbnail")
+    draft = extractor.extract(
         canonical_ingredients=canonical,
         text=content.text,
         image_bytes=content.thumbnail_bytes,
         image_media_type=content.thumbnail_media_type,
         source_hint=content.source_url,
     )
+    return draft, fetch_secs, time.perf_counter() - t1
 
 
 def _apply_update(conn, recipe_id: str, original: dict, draft) -> None:
@@ -138,6 +158,8 @@ def run(
 ) -> int:
     load_dotenv_once()
     extractor = get_extractor()
+    backend_name = type(extractor).__name__
+    print(f"Extractor backend: {backend_name}")
 
     recipes = _list_video_recipes(recipe_id)
     if not recipes:
@@ -169,7 +191,7 @@ def run(
 
         try:
             canonical = _canonical_ingredient_names()
-            draft = _re_extract_one(extractor, source_ref, canonical)
+            draft, fetch_secs, extract_secs = _re_extract_one(extractor, source_ref, canonical)
         except VideoExtractionError as e:
             print(f"    x video fetch failed: {e}")
             failed += 1
@@ -180,16 +202,23 @@ def run(
             print(f"    x unexpected error: {e!r}")
             failed += 1
         else:
+            desc_snippet = (draft.description or "").replace("\n", " ")[:80]
+            desc_display = f'"{desc_snippet}…"' if len(draft.description or "") > 80 else f'"{desc_snippet}"'
             print(
                 f"    > {len(draft.ingredients)} ingredientes, "
                 f"{len(draft.steps)} pasos, "
-                f"{draft.total_time_min or '-'} min, "
-                f"tags: {', '.join(draft.tags) or '-'}"
+                f"dificultad={draft.difficulty or '-'}, "
+                f"porciones={draft.servings}, "
+                f"{draft.total_time_min or '-'} min"
             )
+            print(f"    > tags: {', '.join(draft.tags) or '-'}")
+            print(f"    > descripción: {desc_display}")
+            print(f"    > tiempos: fetch={fetch_secs:.1f}s, extracción={extract_secs:.1f}s")
             if not dry_run:
+                t_write = time.perf_counter()
                 with db.get_conn() as conn:
                     _apply_update(conn, rid, rec, draft)
-                print(f"    v actualizado")
+                print(f"    v actualizado en BD ({time.perf_counter() - t_write:.2f}s)")
             else:
                 print(f"    ~ (dry-run, no escrito)")
             succeeded += 1
