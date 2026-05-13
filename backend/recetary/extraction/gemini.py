@@ -5,12 +5,17 @@ the same RecipeDraft interface as the Claude backend.
 """
 from __future__ import annotations
 
+import io
 import json
 import os
+import time
 from typing import Iterable, Optional
 
 from google import genai
 from google.genai import types
+
+# Videos larger than this are uploaded via the File API instead of sent inline.
+_INLINE_LIMIT = 20 * 1024 * 1024
 
 from .common import (
     SYSTEM_INSTRUCTIONS,
@@ -178,6 +183,21 @@ class GeminiExtractor:
 
         return self._parse_response(response)
 
+    def _upload_video(self, video_bytes: bytes, mime_type: str):
+        """Upload video bytes to the Gemini File API and wait until active."""
+        uploaded = self.client.files.upload(
+            file=io.BytesIO(video_bytes),
+            config=types.UploadFileConfig(mime_type=mime_type, display_name="recipe_video"),
+        )
+        while uploaded.state.name == "PROCESSING":
+            time.sleep(2)
+            uploaded = self.client.files.get(name=uploaded.name)
+        if uploaded.state.name != "ACTIVE":
+            raise ExtractionError(
+                f"Gemini File API upload failed (state={uploaded.state.name})"
+            )
+        return uploaded
+
     def extract_video_bytes(
         self,
         *,
@@ -187,13 +207,24 @@ class GeminiExtractor:
         canonical_ingredients: Iterable[str] = (),
         max_tokens: int = 8192,
     ) -> RecipeDraft:
-        """Extract a recipe from raw video bytes (Instagram reels, Twitter videos)."""
+        """Extract a recipe from raw video bytes (Instagram reels, Twitter videos).
+
+        Videos ≤ 20 MB are sent inline. Larger videos are uploaded via the
+        Gemini File API (supports up to ~2 GB) and deleted after extraction.
+        """
         preamble = build_canonical_preamble(canonical_ingredients)
         parts: list[types.Part] = [types.Part.from_text(text=preamble)]
 
-        parts.append(
-            types.Part.from_bytes(data=video_bytes, mime_type=video_mime_type)
-        )
+        uploaded_file = None
+        if len(video_bytes) > _INLINE_LIMIT:
+            uploaded_file = self._upload_video(video_bytes, video_mime_type)
+            parts.append(
+                types.Part.from_uri(file_uri=uploaded_file.uri, mime_type=video_mime_type)
+            )
+        else:
+            parts.append(
+                types.Part.from_bytes(data=video_bytes, mime_type=video_mime_type)
+            )
 
         if supplementary_text:
             parts.append(
@@ -210,15 +241,21 @@ class GeminiExtractor:
 
         schema = RecipeDraft.model_json_schema()
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=[types.Content(role="user", parts=parts)],
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_INSTRUCTIONS,
-                max_output_tokens=max_tokens,
-                response_mime_type="application/json",
-                response_schema=schema,
-            ),
-        )
-
-        return self._parse_response(response)
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[types.Content(role="user", parts=parts)],
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTIONS,
+                    max_output_tokens=max_tokens,
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                ),
+            )
+            return self._parse_response(response)
+        finally:
+            if uploaded_file is not None:
+                try:
+                    self.client.files.delete(name=uploaded_file.name)
+                except Exception:
+                    pass

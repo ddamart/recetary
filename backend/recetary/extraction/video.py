@@ -14,8 +14,9 @@ from typing import Optional
 
 import httpx
 
-# Maximum video size we'll send to Gemini (20 MB)
-_MAX_VIDEO_BYTES = 20 * 1024 * 1024
+# Hard cap — videos larger than this are rejected outright.
+# Files between 20 MB and this limit are handled via the Gemini File API.
+_MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
 
 class VideoExtractionError(Exception):
@@ -215,7 +216,7 @@ def _fetch_instagram(shortcode: str) -> VideoContent:
                     size_mb = len(raw) / (1024 * 1024)
                     raise VideoExtractionError(
                         f"Instagram video is too large ({size_mb:.1f} MB). "
-                        f"Maximum supported size is {_MAX_VIDEO_BYTES // (1024 * 1024)} MB."
+                        f"Maximum supported size is 200 MB."
                     )
                 video_bytes = raw
                 ext = video_path.suffix.lstrip(".")
@@ -348,7 +349,7 @@ def _fetch_twitter(status_id: str) -> VideoContent:
             size_mb = len(video_bytes) / (1024 * 1024)
             raise VideoExtractionError(
                 f"Twitter video is too large ({size_mb:.1f} MB). "
-                f"Maximum supported size is {_MAX_VIDEO_BYTES // (1024 * 1024)} MB."
+                f"Maximum supported size is 200 MB."
             )
 
         # Detect mime type from extension before tmpdir is cleaned up
