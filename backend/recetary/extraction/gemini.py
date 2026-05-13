@@ -21,11 +21,23 @@ from .common import (
     SYSTEM_INSTRUCTIONS,
     ExtractionError,
     RecipeDraft,
+    VideoRecipeList,
     build_canonical_preamble,
     load_dotenv_once,
 )
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+
+_LIST_RECIPES_PROMPT = (
+    "List every distinct complete recipe shown or explained in this video.\n\n"
+    "Include only recipes with enough detail to actually cook — at least some "
+    "ingredients and preparation steps visible or narrated. Do not include minor "
+    "variations or brief mentions as separate entries.\n\n"
+    "For each recipe provide:\n"
+    "- index: 0-based order in which it appears in the video\n"
+    "- title: the recipe name in Spanish\n"
+    "- description: 1–2 sentences in Spanish summarising the dish and its main character"
+)
 
 _VIDEO_EXTRACTION_PROMPT = (
     "Extract the recipe from the video above into the structured schema.\n\n"
@@ -141,18 +153,54 @@ class GeminiExtractor:
 
         return self._parse_response(response)
 
+    def list_video_recipes(
+        self,
+        *,
+        video_url: str,
+        transcript_text: Optional[str] = None,
+    ) -> VideoRecipeList:
+        """Phase 1: return a lightweight list of all recipes in a YouTube video."""
+        parts: list[types.Part] = [types.Part.from_uri(uri=video_url, mime_type="video/*")]
+
+        if transcript_text:
+            parts.append(
+                types.Part.from_text(
+                    text=f"Video transcript (for reference):\n\n{transcript_text.strip()}"
+                )
+            )
+
+        parts.append(types.Part.from_text(text=_LIST_RECIPES_PROMPT))
+
+        schema = VideoRecipeList.model_json_schema()
+
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=[types.Content(role="user", parts=parts)],
+            config=types.GenerateContentConfig(
+                max_output_tokens=2048,
+                response_mime_type="application/json",
+                response_schema=schema,
+            ),
+        )
+
+        if not response.text:
+            raise ExtractionError("Gemini returned empty response for recipe listing")
+        data = json.loads(response.text)
+        return VideoRecipeList.model_validate(data)
+
     def extract_video_url(
         self,
         *,
         video_url: str,
         transcript_text: Optional[str] = None,
+        recipe_hint: Optional[str] = None,
         canonical_ingredients: Iterable[str] = (),
         max_tokens: int = 8192,
     ) -> RecipeDraft:
         """Extract a recipe directly from a YouTube video URL.
 
-        Gemini can process YouTube videos natively via Part.from_uri(),
-        seeing visual instructions and hearing spoken content.
+        Pass recipe_hint (a title) to focus on one specific recipe when the
+        video contains multiple.
         """
         preamble = build_canonical_preamble(canonical_ingredients)
         parts: list[types.Part] = [types.Part.from_text(text=preamble)]
@@ -166,7 +214,13 @@ class GeminiExtractor:
                 )
             )
 
-        parts.append(types.Part.from_text(text=_VIDEO_EXTRACTION_PROMPT))
+        prompt = _VIDEO_EXTRACTION_PROMPT
+        if recipe_hint:
+            prompt = (
+                f"Focus exclusively on the recipe titled '{recipe_hint}'. "
+                "Ignore all other recipes in the video.\n\n"
+            ) + prompt
+        parts.append(types.Part.from_text(text=prompt))
 
         schema = RecipeDraft.model_json_schema()
 

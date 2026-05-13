@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { RecipeForm } from "@/components/RecipeForm";
-import type { RecipeDraft } from "@/lib/types";
+import type { RecipeDraft, VideoRecipeItem } from "@/lib/types";
 
 type SourceKind = "pdf" | "image" | "text" | "url" | "video";
 
@@ -24,6 +24,10 @@ function isInstagramUrl(url: string): boolean {
   return /instagram\.com\/(?:reel|reels|p)\/[\w-]+/.test(url);
 }
 
+function isYoutubeUrl(url: string): boolean {
+  return /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]{11}/.test(url);
+}
+
 export default function AddPage() {
   const router = useRouter();
   const [source, setSource] = useState<SourceKind>("pdf");
@@ -33,6 +37,7 @@ export default function AddPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
+  const [videoRecipes, setVideoRecipes] = useState<VideoRecipeItem[] | null>(null);
   const [backend, setBackend] = useState<string>("gemini");
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -68,6 +73,27 @@ export default function AddPage() {
     setError(null);
     setBusy(true);
     try {
+      // YouTube: phase 1 — list all recipes in the video first
+      if (source === "video" && isYoutubeUrl(url)) {
+        if (!url.trim()) throw new Error("Introduce una URL");
+        const listing = await api.listVideoRecipes(url);
+        if (listing.recipes.length === 0) {
+          throw new Error("No se encontraron recetas en este vídeo");
+        }
+        if (listing.recipes.length > 1) {
+          setVideoRecipes(listing.recipes);
+          return;
+        }
+        // Single recipe: extract directly with the title as hint
+        const form = new FormData();
+        form.set("source_type", "video");
+        form.set("url", url);
+        form.set("recipe_hint", listing.recipes[0].title);
+        const result = await api.extractDraft(form);
+        setDraft(result);
+        return;
+      }
+
       const form = new FormData();
       form.set("source_type", source);
       if (source === "pdf" || source === "image") {
@@ -80,6 +106,23 @@ export default function AddPage() {
         if (!url.trim()) throw new Error("Introduce una URL");
         form.set("url", url);
       }
+      const result = await api.extractDraft(form);
+      setDraft(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function selectRecipe(item: VideoRecipeItem) {
+    setError(null);
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.set("source_type", "video");
+      form.set("url", url);
+      form.set("recipe_hint", item.title);
       const result = await api.extractDraft(form);
       setDraft(result);
     } catch (e) {
@@ -115,13 +158,60 @@ export default function AddPage() {
     }
   }
 
+  if (videoRecipes && !draft) {
+    return (
+      <div className="flex flex-col gap-6 max-w-3xl">
+        <header className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Elige una receta</h1>
+          <p className="text-sm text-muted">
+            Este vídeo contiene {videoRecipes.length} recetas. Selecciona la que quieres guardar.
+          </p>
+        </header>
+
+        <div className="flex flex-col gap-3">
+          {videoRecipes.map((item) => (
+            <button
+              key={item.index}
+              type="button"
+              onClick={() => selectRecipe(item)}
+              disabled={busy}
+              className="flex flex-col gap-1 p-4 rounded-xl border border-border bg-card text-left hover:border-accent/60 hover:bg-accent-soft transition disabled:opacity-60"
+            >
+              <span className="font-medium text-sm">{item.title}</span>
+              <span className="text-xs text-muted">{item.description}</span>
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+            {error}
+          </p>
+        )}
+
+        <div className="flex justify-between">
+          <button
+            type="button"
+            onClick={() => setVideoRecipes(null)}
+            className="px-4 py-2 rounded-md border border-border text-sm hover:bg-zinc-50"
+          >
+            ← Cambiar vídeo
+          </button>
+          {busy && (
+            <span className="text-sm text-muted self-center">Extrayendo receta...</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (draft) {
     return (
       <RecipeForm
         draft={draft}
         setDraft={setDraft}
         header="Revisa antes de guardar"
-        onBack={() => { setDraft(null); setImageBlob(null); setReferenceBlob(null); }}
+        onBack={() => { setDraft(null); setVideoRecipes(null); setImageBlob(null); setReferenceBlob(null); }}
         backLabel="← Cambiar fuente"
         onSubmit={commit}
         busy={busy}

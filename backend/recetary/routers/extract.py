@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from .. import db, repo
 from ..extraction import RecipeDraft, ExtractionError, get_extractor
+from ..extraction.common import VideoRecipeList
 from ..extraction import images as image_io
 from ..extraction import url as url_io
 from ..extraction import video as video_io
@@ -31,12 +32,46 @@ def _canonical_ingredient_names() -> list[str]:
     return [r["name"] for r in rows]
 
 
+@router.post("/list-video-recipes", response_model=VideoRecipeList)
+async def list_video_recipes(
+    url: str = Form(...),
+) -> VideoRecipeList:
+    """Phase 1: return a lightweight list of all recipes found in a YouTube video."""
+    extractor = _get_extractor()
+    if not hasattr(extractor, "list_video_recipes"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Multi-recipe listing requires the Gemini backend.",
+        )
+
+    if not video_io._extract_youtube_id(url):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Multi-recipe listing is only supported for YouTube URLs.",
+        )
+
+    try:
+        content = await asyncio.to_thread(video_io.fetch_video_content, url)
+    except VideoExtractionError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    try:
+        return await asyncio.to_thread(
+            extractor.list_video_recipes,
+            video_url=content.source_url,
+            transcript_text=content.text,
+        )
+    except ExtractionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
+
 @router.post("/extract", response_model=RecipeDraft)
 async def extract_recipe(
     source_type: str = Form(..., description="One of: pdf, image, text, url, video"),
     text: Optional[str] = Form(None),
     url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+    recipe_hint: Optional[str] = Form(None),
 ) -> RecipeDraft:
     extractor = _get_extractor()
     canonical = _canonical_ingredient_names()
@@ -128,6 +163,7 @@ async def extract_recipe(
                         extractor.extract_video_url,
                         video_url=content.source_url,
                         transcript_text=content.text,
+                        recipe_hint=recipe_hint,
                         canonical_ingredients=canonical,
                     )
                     draft.source_ref = content.source_url

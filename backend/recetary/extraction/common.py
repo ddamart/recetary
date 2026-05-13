@@ -73,6 +73,18 @@ class StepDraft(BaseModel):
     text: str = Field(description="Body of the step, in Spanish")
 
 
+class VideoRecipeSummary(BaseModel):
+    """One entry returned by the phase-1 multi-recipe listing call."""
+
+    index: int = Field(description="0-based position in the video")
+    title: str = Field(description="Recipe title in Spanish")
+    description: str = Field(description="1-2 sentence summary in Spanish")
+
+
+class VideoRecipeList(BaseModel):
+    recipes: list[VideoRecipeSummary]
+
+
 class RecipeDraft(BaseModel):
     """The AI-extracted recipe payload, before the caller attaches source info."""
 

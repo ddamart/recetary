@@ -1,7 +1,7 @@
 // Thin fetch wrapper over the FastAPI backend.
 
 import type {
-  IngredientOut, Recipe, RecipeDraft, RecipeMatch, RecipeSummary,
+  IngredientOut, Recipe, RecipeDraft, RecipeMatch, RecipeSummary, VideoRecipeList,
 } from "./types";
 
 export const API_URL =
@@ -77,6 +77,11 @@ export const api = {
   },
   extractDraft: async (form: FormData): Promise<RecipeDraft> =>
     request<RecipeDraft>("/recipes/extract", { method: "POST", body: form }),
+  listVideoRecipes: async (url: string): Promise<VideoRecipeList> => {
+    const form = new FormData();
+    form.set("url", url);
+    return request<VideoRecipeList>("/recipes/list-video-recipes", { method: "POST", body: form });
+  },
   getInfo: () => request<{ extractor_backend: string }>("/info"),
   getImageStyles: () => request<{ id: string; label: string }[]>("/recipes/image-styles"),
   generateImage: async (title: string, subtitle: string | null, description: string | null, style?: string, referenceImage?: Blob | null): Promise<Blob> => {

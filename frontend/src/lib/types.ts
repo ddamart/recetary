@@ -87,6 +87,17 @@ export interface RecipeMatch extends RecipeSummary {
   missing_ingredients: string[];
 }
 
+// Phase-1 YouTube multi-recipe listing
+export interface VideoRecipeItem {
+  index: number;
+  title: string;
+  description: string;
+}
+
+export interface VideoRecipeList {
+  recipes: VideoRecipeItem[];
+}
+
 // Draft returned by /recipes/extract — caller posts back to /recipes
 export interface IngredientDraft {
   name: string;
