@@ -160,7 +160,7 @@ class GeminiExtractor:
         transcript_text: Optional[str] = None,
     ) -> VideoRecipeList:
         """Phase 1: return a lightweight list of all recipes in a YouTube video."""
-        parts: list[types.Part] = [types.Part.from_uri(uri=video_url, mime_type="video/*")]
+        parts: list[types.Part] = [types.Part.from_uri(file_uri=video_url, mime_type="video/*")]
 
         if transcript_text:
             parts.append(
@@ -205,7 +205,7 @@ class GeminiExtractor:
         preamble = build_canonical_preamble(canonical_ingredients)
         parts: list[types.Part] = [types.Part.from_text(text=preamble)]
 
-        parts.append(types.Part.from_uri(uri=video_url, mime_type="video/*"))
+        parts.append(types.Part.from_uri(file_uri=video_url, mime_type="video/*"))
 
         if transcript_text:
             parts.append(
