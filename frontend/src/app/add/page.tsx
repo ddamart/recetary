@@ -7,47 +7,51 @@ import { RecipeForm } from "@/components/RecipeForm";
 import type { RecipeDraft, VideoRecipeItem } from "@/lib/types";
 
 type SourceKind = "pdf" | "image" | "text" | "url" | "video";
+type PageView = "source" | "picker" | "flow";
 
 const SOURCE_OPTIONS: { kind: SourceKind; label: string; icon: string; help: string }[] = [
-  { kind: "pdf", label: "PDF", icon: "📄", help: "Sube un PDF (HelloFresh u otros)" },
+  { kind: "pdf",   label: "PDF",    icon: "📄", help: "Sube un PDF (HelloFresh u otros)" },
   { kind: "image", label: "Imagen", icon: "🖼️", help: "Foto de una receta (PNG/JPG)" },
-  { kind: "text", label: "Texto", icon: "✍️", help: "Pega o escribe la receta" },
-  { kind: "url", label: "URL", icon: "🔗", help: "Enlace a artículo web" },
-  { kind: "video", label: "Vídeo", icon: "🎬", help: "YouTube, Instagram o Twitter/X" },
+  { kind: "text",  label: "Texto",  icon: "✍️", help: "Pega o escribe la receta" },
+  { kind: "url",   label: "URL",    icon: "🔗", help: "Enlace a artículo web" },
+  { kind: "video", label: "Vídeo",  icon: "🎬", help: "YouTube, Instagram o Twitter/X" },
 ];
 
-function isTwitterUrl(url: string): boolean {
-  return /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url);
-}
-
-function isInstagramUrl(url: string): boolean {
-  return /instagram\.com\/(?:reel|reels|p)\/[\w-]+/.test(url);
-}
-
-function isYoutubeUrl(url: string): boolean {
-  return /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]{11}/.test(url);
-}
+function isTwitterUrl(url: string)   { return /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url); }
+function isInstagramUrl(url: string) { return /instagram\.com\/(?:reel|reels|p)\/[\w-]+/.test(url); }
+function isYoutubeUrl(url: string)   { return /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]{11}/.test(url); }
 
 export default function AddPage() {
   const router = useRouter();
+
+  // ── Source form state ──────────────────────────────────────────────────────
   const [source, setSource] = useState<SourceKind>("pdf");
-  const [file, setFile] = useState<File | null>(null);
-  const [text, setText] = useState("");
-  const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<RecipeDraft | null>(null);
-  const [videoRecipes, setVideoRecipes] = useState<VideoRecipeItem[] | null>(null);
-  const [pickerSelection, setPickerSelection] = useState<Set<number>>(new Set());
-  const [recipeQueue, setRecipeQueue] = useState<VideoRecipeItem[]>([]);
-  const [currentQueueItem, setCurrentQueueItem] = useState<VideoRecipeItem | null>(null);
-  const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
-  const [queueTotal, setQueueTotal] = useState(0);
+  const [file,   setFile]   = useState<File | null>(null);
+  const [text,   setText]   = useState("");
+  const [url,    setUrl]    = useState("");
   const [backend, setBackend] = useState<string>("gemini");
-  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+
+  // ── Page view + shared async state ────────────────────────────────────────
+  const [view,  setView]  = useState<PageView>("source");
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ── Picker state ──────────────────────────────────────────────────────────
+  const [videoRecipes,    setVideoRecipes]    = useState<VideoRecipeItem[]>([]);
+  const [pickerSelection, setPickerSelection] = useState<Set<number>>(new Set());
+
+  // ── Sequential flow state ─────────────────────────────────────────────────
+  const [flowQueue,        setFlowQueue]        = useState<VideoRecipeItem[]>([]);
+  const [flowTotal,        setFlowTotal]        = useState(0);
+  const [flowDone,         setFlowDone]         = useState(0);   // recipes saved so far
+  const [flowCurrentTitle, setFlowCurrentTitle] = useState("");  // title being processed
+  const [draft,            setDraft]            = useState<RecipeDraft | null>(null);
+
+  // ── Image generation state ────────────────────────────────────────────────
+  const [imageBlob,    setImageBlob]    = useState<Blob | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [imageStyles, setImageStyles] = useState<{ id: string; label: string }[]>([]);
+  const [imageError,   setImageError]   = useState<string | null>(null);
+  const [imageStyles,  setImageStyles]  = useState<{ id: string; label: string }[]>([]);
   const [selectedStyle, setSelectedStyle] = useState("ghibli");
   const [referenceBlob, setReferenceBlob] = useState<Blob | null>(null);
 
@@ -57,6 +61,126 @@ export default function AddPage() {
   }, []);
 
   const videoBlocked = source === "video" && (isTwitterUrl(url) || isInstagramUrl(url)) && backend !== "gemini";
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function resetToSource() {
+    setView("source");
+    setVideoRecipes([]);
+    setPickerSelection(new Set());
+    setFlowQueue([]);
+    setFlowTotal(0);
+    setFlowDone(0);
+    setFlowCurrentTitle("");
+    setDraft(null);
+    setImageBlob(null);
+    setReferenceBlob(null);
+    setError(null);
+    setBusy(false);
+  }
+
+  async function fetchRecipeFromVideo(item: VideoRecipeItem) {
+    setFlowCurrentTitle(item.title);
+    const form = new FormData();
+    form.set("source_type", "video");
+    form.set("url", url);
+    form.set("recipe_hint", item.title);
+    const result = await api.extractDraft(form);
+    setDraft(result);
+  }
+
+  // ── Phase 1: extract ───────────────────────────────────────────────────────
+
+  async function extract() {
+    setError(null);
+    setBusy(true);
+    try {
+      if (source === "video" && isYoutubeUrl(url)) {
+        if (!url.trim()) throw new Error("Introduce una URL");
+        const listing = await api.listVideoRecipes(url);
+        if (listing.recipes.length === 0) throw new Error("No se encontraron recetas en este vídeo");
+        if (listing.recipes.length > 1) {
+          setVideoRecipes(listing.recipes);
+          setPickerSelection(new Set());
+          setView("picker");
+          return;
+        }
+        // Single recipe: skip picker, go straight to flow
+        const only = listing.recipes[0];
+        setFlowTotal(1);
+        setFlowDone(0);
+        setFlowQueue([]);
+        setView("flow");
+        await fetchRecipeFromVideo(only);
+        return;
+      }
+
+      const form = new FormData();
+      form.set("source_type", source);
+      if (source === "pdf" || source === "image") {
+        if (!file) throw new Error("Selecciona un fichero");
+        form.set("file", file);
+      } else if (source === "text") {
+        if (!text.trim()) throw new Error("Pega texto de receta");
+        form.set("text", text);
+      } else {
+        if (!url.trim()) throw new Error("Introduce una URL");
+        form.set("url", url);
+      }
+      setFlowTotal(1);
+      setFlowDone(0);
+      setFlowQueue([]);
+      setFlowCurrentTitle("");
+      setView("flow");
+      const result = await api.extractDraft(form);
+      setDraft(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido");
+      setView("source");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Picker: confirm selection ──────────────────────────────────────────────
+
+  async function confirmSelection() {
+    const selected = videoRecipes.filter((r) => pickerSelection.has(r.index));
+    if (selected.length === 0) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const [first, ...rest] = selected;
+      setFlowTotal(selected.length);
+      setFlowDone(0);
+      setFlowQueue(rest);
+      setView("flow");
+      await fetchRecipeFromVideo(first);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido");
+      setView("picker");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleSelection(index: number) {
+    setPickerSelection((prev) => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setPickerSelection((prev) =>
+      prev.size === videoRecipes.length
+        ? new Set()
+        : new Set(videoRecipes.map((r) => r.index))
+    );
+  }
+
+  // ── Image generation ───────────────────────────────────────────────────────
 
   const generateImage = useCallback(async (style: string) => {
     if (!draft) return;
@@ -74,94 +198,7 @@ export default function AddPage() {
     }
   }, [draft, referenceBlob]);
 
-  async function extractOne(item: VideoRecipeItem) {
-    setCurrentQueueItem(item);
-    const form = new FormData();
-    form.set("source_type", "video");
-    form.set("url", url);
-    form.set("recipe_hint", item.title);
-    const result = await api.extractDraft(form);
-    setDraft(result);
-  }
-
-  async function extract() {
-    setError(null);
-    setBusy(true);
-    try {
-      if (source === "video" && isYoutubeUrl(url)) {
-        if (!url.trim()) throw new Error("Introduce una URL");
-        const listing = await api.listVideoRecipes(url);
-        if (listing.recipes.length === 0) throw new Error("No se encontraron recetas en este vídeo");
-        if (listing.recipes.length > 1) {
-          setVideoRecipes(listing.recipes);
-          setPickerSelection(new Set());
-          return;
-        }
-        // Single recipe: skip picker
-        setQueueTotal(1);
-        setRecipeQueue([]);
-        await extractOne(listing.recipes[0]);
-        return;
-      }
-
-      const form = new FormData();
-      form.set("source_type", source);
-      if (source === "pdf" || source === "image") {
-        if (!file) throw new Error("Selecciona un fichero");
-        form.set("file", file);
-      } else if (source === "text") {
-        if (!text.trim()) throw new Error("Pega texto de receta");
-        form.set("text", text);
-      } else {
-        if (!url.trim()) throw new Error("Introduce una URL");
-        form.set("url", url);
-      }
-      setQueueTotal(1);
-      setRecipeQueue([]);
-      const result = await api.extractDraft(form);
-      setDraft(result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmSelection() {
-    if (!videoRecipes) return;
-    const selected = videoRecipes.filter((r) => pickerSelection.has(r.index));
-    if (selected.length === 0) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const [first, ...rest] = selected;
-      setQueueTotal(selected.length);
-      setRecipeQueue(rest);
-      await extractOne(first);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggleSelection(index: number) {
-    setPickerSelection((prev) => {
-      const next = new Set(prev);
-      next.has(index) ? next.delete(index) : next.add(index);
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (!videoRecipes) return;
-    const selectable = videoRecipes.filter((r) => !savedIndices.has(r.index));
-    setPickerSelection((prev) =>
-      selectable.every((r) => prev.has(r.index))
-        ? new Set()
-        : new Set(selectable.map((r) => r.index))
-    );
-  }
+  // ── Save & advance queue ───────────────────────────────────────────────────
 
   async function commit() {
     if (!draft) return;
@@ -172,42 +209,106 @@ export default function AddPage() {
         source === "url" || source === "video"
           ? url
           : source === "text" ? null : file?.name ?? null;
-      const payload = {
+      const created = await api.createRecipe({
         ...draft,
         source_type: source,
         source_ref: draft.source_ref ?? autoRef,
         raw_text: source === "text" ? text : null,
-      };
-      const created = await api.createRecipe(payload);
+      });
       if (imageBlob) {
         try { await api.uploadImage(created.id, imageBlob); } catch {}
       }
 
-      if (currentQueueItem) {
-        setSavedIndices((prev) => new Set([...prev, currentQueueItem.index]));
-      }
+      const newDone = flowDone + 1;
+      setFlowDone(newDone);
 
-      if (recipeQueue.length > 0) {
-        // More recipes to go — extract the next one
-        const [next, ...rest] = recipeQueue;
-        setRecipeQueue(rest);
+      if (flowQueue.length > 0) {
+        const [next, ...rest] = flowQueue;
+        setFlowQueue(rest);
         setDraft(null);
         setImageBlob(null);
         setReferenceBlob(null);
-        await extractOne(next);
+        await fetchRecipeFromVideo(next);
       } else {
-        router.push(`/recipe/${created.id}`);
+        // All done — back to source picker
+        resetToSource();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
+    } finally {
       setBusy(false);
     }
   }
 
-  // ── Picker screen ──────────────────────────────────────────────────────────
-  if (videoRecipes && !draft) {
-    const selectableRecipes = videoRecipes.filter((r) => !savedIndices.has(r.index));
-    const allSelected = selectableRecipes.length > 0 && selectableRecipes.every((r) => pickerSelection.has(r.index));
+  // ── Floating progress bar (shown during flow) ──────────────────────────────
+
+  const ProgressBar = view === "flow" ? (
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border shadow-lg">
+      <div
+        className="h-1 bg-accent transition-all duration-500"
+        style={{ width: `${(flowDone / flowTotal) * 100}%` }}
+      />
+      <div className="flex items-center justify-between px-6 py-3 max-w-3xl mx-auto">
+        <span className="text-sm text-muted truncate">
+          {draft === null
+            ? <>Cargando <span className="font-medium text-foreground">"{flowCurrentTitle}"</span>…</>
+            : <><span className="font-medium text-foreground">"{flowCurrentTitle}"</span></>
+          }
+        </span>
+        <span className="text-sm font-medium text-muted ml-4 flex-none">
+          {flowDone + 1} / {flowTotal}
+        </span>
+      </div>
+    </div>
+  ) : null;
+
+  // ── Render: flow ───────────────────────────────────────────────────────────
+
+  if (view === "flow") {
+    if (draft === null) {
+      return (
+        <>
+          <div className="flex flex-col items-center gap-4 py-24 max-w-3xl">
+            <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+            <p className="text-sm text-muted">Extrayendo "{flowCurrentTitle}"…</p>
+          </div>
+          {ProgressBar}
+        </>
+      );
+    }
+    return (
+      <>
+        <div className="pb-16">
+          <RecipeForm
+            draft={draft}
+            setDraft={setDraft}
+            header="Revisa antes de guardar"
+            onBack={resetToSource}
+            backLabel="✕ Cancelar"
+            onSubmit={commit}
+            busy={busy}
+            error={error}
+            imageBlob={imageBlob}
+            imageLoading={imageLoading}
+            imageError={imageError}
+            onDismissImageError={() => setImageError(null)}
+            imageStyles={imageStyles}
+            selectedStyle={selectedStyle}
+            onStyleSelect={(s) => setSelectedStyle(s)}
+            onGenerateImage={(s) => generateImage(s)}
+            referenceImage={referenceBlob}
+            onReferenceImageChange={setReferenceBlob}
+          />
+        </div>
+        {ProgressBar}
+      </>
+    );
+  }
+
+  // ── Render: picker ─────────────────────────────────────────────────────────
+
+  if (view === "picker") {
+    const allSelected = pickerSelection.size === videoRecipes.length;
     return (
       <div className="flex flex-col gap-6 max-w-3xl">
         <header className="flex flex-col gap-2">
@@ -219,36 +320,26 @@ export default function AddPage() {
 
         <div className="flex flex-col gap-3">
           {videoRecipes.map((item) => {
-            const saved = savedIndices.has(item.index);
             const selected = pickerSelection.has(item.index);
             return (
               <button
                 key={item.index}
                 type="button"
-                onClick={() => !saved && toggleSelection(item.index)}
-                disabled={busy || saved}
-                className={`flex items-start gap-3 p-4 rounded-xl border text-left transition ${
-                  saved
-                    ? "border-border bg-card opacity-50 cursor-default"
-                    : selected
-                      ? "border-accent bg-accent-soft"
-                      : "border-border bg-card hover:border-accent/40"
+                onClick={() => toggleSelection(item.index)}
+                disabled={busy}
+                className={`flex items-start gap-3 p-4 rounded-xl border text-left transition disabled:opacity-60 ${
+                  selected
+                    ? "border-accent bg-accent-soft"
+                    : "border-border bg-card hover:border-accent/40"
                 }`}
               >
                 <span className={`mt-0.5 flex-none w-4 h-4 rounded border flex items-center justify-center text-xs font-bold ${
-                  saved
-                    ? "bg-green-500 border-green-500 text-white"
-                    : selected
-                      ? "bg-accent border-accent text-white"
-                      : "border-border"
+                  selected ? "bg-accent border-accent text-white" : "border-border"
                 }`}>
-                  {saved || selected ? "✓" : ""}
+                  {selected ? "✓" : ""}
                 </span>
-                <span className="flex flex-col gap-0.5 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{item.title}</span>
-                    {saved && <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">Guardada</span>}
-                  </span>
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-medium text-sm">{item.title}</span>
                   <span className="text-xs text-muted">{item.description}</span>
                 </span>
               </button>
@@ -257,16 +348,14 @@ export default function AddPage() {
         </div>
 
         {error && (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
-            {error}
-          </p>
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{error}</p>
         )}
 
         <div className="flex items-center justify-between gap-3">
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => { setVideoRecipes(null); setPickerSelection(new Set()); }}
+              onClick={() => setView("source")}
               className="px-4 py-2 rounded-md border border-border text-sm hover:bg-zinc-50"
             >
               ← Cambiar vídeo
@@ -286,59 +375,24 @@ export default function AddPage() {
             className="px-5 py-2 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-60"
           >
             {busy
-              ? "Extrayendo..."
+              ? "Extrayendo…"
               : pickerSelection.size <= 1
                 ? "Extraer →"
-                : `Extraer ${pickerSelection.size} recetas →`}
+                : `Extraer ${pickerSelection.size} →`}
           </button>
         </div>
       </div>
     );
   }
 
-  // ── Review form ────────────────────────────────────────────────────────────
-  if (draft) {
-    const currentIndex = queueTotal - recipeQueue.length;
-    const header = queueTotal > 1
-      ? `Receta ${currentIndex} de ${queueTotal} — Revisa antes de guardar`
-      : "Revisa antes de guardar";
-    return (
-      <RecipeForm
-        draft={draft}
-        setDraft={setDraft}
-        header={header}
-        onBack={() => {
-          setDraft(null);
-          setImageBlob(null);
-          setReferenceBlob(null);
-          if (!videoRecipes) setRecipeQueue([]);
-        }}
-        backLabel={videoRecipes ? "← Volver al selector" : "← Cambiar fuente"}
-        onSubmit={commit}
-        busy={busy}
-        error={error}
-        imageBlob={imageBlob}
-        imageLoading={imageLoading}
-        imageError={imageError}
-        onDismissImageError={() => setImageError(null)}
-        imageStyles={imageStyles}
-        selectedStyle={selectedStyle}
-        onStyleSelect={(s) => setSelectedStyle(s)}
-        onGenerateImage={(s) => generateImage(s)}
-        referenceImage={referenceBlob}
-        onReferenceImageChange={setReferenceBlob}
-      />
-    );
-  }
+  // ── Render: source picker ──────────────────────────────────────────────────
 
-  // ── Source picker ──────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Nueva receta</h1>
         <p className="text-sm text-muted">
-          Elige el origen, la IA extraerá los ingredientes y los pasos, y revisas
-          antes de guardar.
+          Elige el origen, la IA extraerá los ingredientes y los pasos, y revisas antes de guardar.
         </p>
       </header>
 
@@ -371,11 +425,7 @@ export default function AddPage() {
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-accent file:text-white file:cursor-pointer"
             />
-            {file && (
-              <span className="text-xs text-muted">
-                {file.name} · {(file.size / 1024).toFixed(0)} KB
-              </span>
-            )}
+            {file && <span className="text-xs text-muted">{file.name} · {(file.size / 1024).toFixed(0)} KB</span>}
           </label>
         )}
         {source === "text" && (
@@ -386,7 +436,7 @@ export default function AddPage() {
               onChange={(e) => setText(e.target.value)}
               rows={10}
               className="border border-border rounded-md p-3 text-sm focus:border-accent outline-none"
-              placeholder="Pega aquí la receta en texto plano..."
+              placeholder="Pega aquí la receta en texto plano…"
             />
           </label>
         )}
@@ -397,7 +447,7 @@ export default function AddPage() {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://..."
+              placeholder="https://…"
               className="border border-border rounded-md p-2 text-sm focus:border-accent outline-none"
             />
           </label>
@@ -409,16 +459,13 @@ export default function AddPage() {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://youtube.com/watch?v=... · instagram.com/reel/... · x.com/.../status/..."
+              placeholder="https://youtube.com/watch?v=… · instagram.com/reel/… · x.com/…/status/…"
               className="border border-border rounded-md p-2 text-sm focus:border-accent outline-none"
             />
-            <span className="text-xs text-muted">
-              YouTube (subtítulos), Instagram (vídeo) y Twitter/X (vídeo)
-            </span>
+            <span className="text-xs text-muted">YouTube (subtítulos), Instagram (vídeo) y Twitter/X (vídeo)</span>
             {videoBlocked && (
               <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
-                Los vídeos de Twitter/X e Instagram requieren el backend Gemini.
-                El backend actual (Claude) no admite procesamiento de vídeo directo.
+                Los vídeos de Twitter/X e Instagram requieren el backend Gemini. El backend actual (Claude) no admite procesamiento de vídeo directo.
               </p>
             )}
           </label>
@@ -426,9 +473,7 @@ export default function AddPage() {
       </div>
 
       {error && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
-          {error}
-        </p>
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{error}</p>
       )}
 
       <div className="flex justify-end gap-3">
@@ -445,7 +490,7 @@ export default function AddPage() {
           disabled={busy || videoBlocked}
           className="px-5 py-2 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Extrayendo..." : "Extraer →"}
+          {busy ? "Extrayendo…" : "Extraer →"}
         </button>
       </div>
     </div>
