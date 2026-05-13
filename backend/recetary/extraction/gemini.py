@@ -185,7 +185,10 @@ class GeminiExtractor:
 
         if not response.text:
             raise ExtractionError("Gemini returned empty response for recipe listing")
-        data = json.loads(response.text)
+        try:
+            data = json.loads(response.text.strip())
+        except json.JSONDecodeError as e:
+            raise ExtractionError(f"Gemini returned invalid JSON for recipe listing: {e}")
         return VideoRecipeList.model_validate(data)
 
     def extract_video_url(
