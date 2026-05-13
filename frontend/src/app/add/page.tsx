@@ -38,6 +38,9 @@ export default function AddPage() {
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
   const [videoRecipes, setVideoRecipes] = useState<VideoRecipeItem[] | null>(null);
+  const [pickerSelection, setPickerSelection] = useState<Set<number>>(new Set());
+  const [recipeQueue, setRecipeQueue] = useState<VideoRecipeItem[]>([]);
+  const [queueTotal, setQueueTotal] = useState(0);
   const [backend, setBackend] = useState<string>("gemini");
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -69,28 +72,32 @@ export default function AddPage() {
     }
   }, [draft, referenceBlob]);
 
+  async function extractOne(item: VideoRecipeItem) {
+    const form = new FormData();
+    form.set("source_type", "video");
+    form.set("url", url);
+    form.set("recipe_hint", item.title);
+    const result = await api.extractDraft(form);
+    setDraft(result);
+  }
+
   async function extract() {
     setError(null);
     setBusy(true);
     try {
-      // YouTube: phase 1 — list all recipes in the video first
       if (source === "video" && isYoutubeUrl(url)) {
         if (!url.trim()) throw new Error("Introduce una URL");
         const listing = await api.listVideoRecipes(url);
-        if (listing.recipes.length === 0) {
-          throw new Error("No se encontraron recetas en este vídeo");
-        }
+        if (listing.recipes.length === 0) throw new Error("No se encontraron recetas en este vídeo");
         if (listing.recipes.length > 1) {
           setVideoRecipes(listing.recipes);
+          setPickerSelection(new Set());
           return;
         }
-        // Single recipe: extract directly with the title as hint
-        const form = new FormData();
-        form.set("source_type", "video");
-        form.set("url", url);
-        form.set("recipe_hint", listing.recipes[0].title);
-        const result = await api.extractDraft(form);
-        setDraft(result);
+        // Single recipe: skip picker
+        setQueueTotal(1);
+        setRecipeQueue([]);
+        await extractOne(listing.recipes[0]);
         return;
       }
 
@@ -106,6 +113,8 @@ export default function AddPage() {
         if (!url.trim()) throw new Error("Introduce una URL");
         form.set("url", url);
       }
+      setQueueTotal(1);
+      setRecipeQueue([]);
       const result = await api.extractDraft(form);
       setDraft(result);
     } catch (e) {
@@ -115,21 +124,39 @@ export default function AddPage() {
     }
   }
 
-  async function selectRecipe(item: VideoRecipeItem) {
+  async function confirmSelection() {
+    if (!videoRecipes) return;
+    const selected = videoRecipes.filter((r) => pickerSelection.has(r.index));
+    if (selected.length === 0) return;
     setError(null);
     setBusy(true);
     try {
-      const form = new FormData();
-      form.set("source_type", "video");
-      form.set("url", url);
-      form.set("recipe_hint", item.title);
-      const result = await api.extractDraft(form);
-      setDraft(result);
+      const [first, ...rest] = selected;
+      setQueueTotal(selected.length);
+      setRecipeQueue(rest);
+      await extractOne(first);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggleSelection(index: number) {
+    setPickerSelection((prev) => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (!videoRecipes) return;
+    setPickerSelection((prev) =>
+      prev.size === videoRecipes.length
+        ? new Set()
+        : new Set(videoRecipes.map((r) => r.index))
+    );
   }
 
   async function commit() {
@@ -151,36 +178,63 @@ export default function AddPage() {
       if (imageBlob) {
         try { await api.uploadImage(created.id, imageBlob); } catch {}
       }
-      router.push(`/recipe/${created.id}`);
+
+      if (recipeQueue.length > 0) {
+        // More recipes to go — extract the next one
+        const [next, ...rest] = recipeQueue;
+        setRecipeQueue(rest);
+        setDraft(null);
+        setImageBlob(null);
+        setReferenceBlob(null);
+        await extractOne(next);
+      } else {
+        router.push(`/recipe/${created.id}`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
       setBusy(false);
     }
   }
 
+  // ── Picker screen ──────────────────────────────────────────────────────────
   if (videoRecipes && !draft) {
+    const allSelected = pickerSelection.size === videoRecipes.length;
     return (
       <div className="flex flex-col gap-6 max-w-3xl">
         <header className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Elige una receta</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Elige recetas</h1>
           <p className="text-sm text-muted">
-            Este vídeo contiene {videoRecipes.length} recetas. Selecciona la que quieres guardar.
+            Este vídeo contiene {videoRecipes.length} recetas. Selecciona las que quieres guardar.
           </p>
         </header>
 
         <div className="flex flex-col gap-3">
-          {videoRecipes.map((item) => (
-            <button
-              key={item.index}
-              type="button"
-              onClick={() => selectRecipe(item)}
-              disabled={busy}
-              className="flex flex-col gap-1 p-4 rounded-xl border border-border bg-card text-left hover:border-accent/60 hover:bg-accent-soft transition disabled:opacity-60"
-            >
-              <span className="font-medium text-sm">{item.title}</span>
-              <span className="text-xs text-muted">{item.description}</span>
-            </button>
-          ))}
+          {videoRecipes.map((item) => {
+            const selected = pickerSelection.has(item.index);
+            return (
+              <button
+                key={item.index}
+                type="button"
+                onClick={() => toggleSelection(item.index)}
+                disabled={busy}
+                className={`flex items-start gap-3 p-4 rounded-xl border text-left transition disabled:opacity-60 ${
+                  selected
+                    ? "border-accent bg-accent-soft"
+                    : "border-border bg-card hover:border-accent/40"
+                }`}
+              >
+                <span className={`mt-0.5 flex-none w-4 h-4 rounded border flex items-center justify-center text-xs font-bold ${
+                  selected ? "bg-accent border-accent text-white" : "border-border"
+                }`}>
+                  {selected ? "✓" : ""}
+                </span>
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-medium text-sm">{item.title}</span>
+                  <span className="text-xs text-muted">{item.description}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {error && (
@@ -189,30 +243,58 @@ export default function AddPage() {
           </p>
         )}
 
-        <div className="flex justify-between">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => { setVideoRecipes(null); setPickerSelection(new Set()); }}
+              className="px-4 py-2 rounded-md border border-border text-sm hover:bg-zinc-50"
+            >
+              ← Cambiar vídeo
+            </button>
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="px-4 py-2 rounded-md border border-border text-sm hover:bg-zinc-50"
+            >
+              {allSelected ? "Deseleccionar todo" : "Seleccionar todo"}
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => setVideoRecipes(null)}
-            className="px-4 py-2 rounded-md border border-border text-sm hover:bg-zinc-50"
+            onClick={confirmSelection}
+            disabled={busy || pickerSelection.size === 0}
+            className="px-5 py-2 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-60"
           >
-            ← Cambiar vídeo
+            {busy
+              ? "Extrayendo..."
+              : pickerSelection.size <= 1
+                ? "Extraer →"
+                : `Extraer ${pickerSelection.size} recetas →`}
           </button>
-          {busy && (
-            <span className="text-sm text-muted self-center">Extrayendo receta...</span>
-          )}
         </div>
       </div>
     );
   }
 
+  // ── Review form ────────────────────────────────────────────────────────────
   if (draft) {
+    const currentIndex = queueTotal - recipeQueue.length;
+    const header = queueTotal > 1
+      ? `Receta ${currentIndex} de ${queueTotal} — Revisa antes de guardar`
+      : "Revisa antes de guardar";
     return (
       <RecipeForm
         draft={draft}
         setDraft={setDraft}
-        header="Revisa antes de guardar"
-        onBack={() => { setDraft(null); setVideoRecipes(null); setImageBlob(null); setReferenceBlob(null); }}
-        backLabel="← Cambiar fuente"
+        header={header}
+        onBack={() => {
+          setDraft(null);
+          setImageBlob(null);
+          setReferenceBlob(null);
+          if (!videoRecipes) setRecipeQueue([]);
+        }}
+        backLabel={videoRecipes ? "← Volver al selector" : "← Cambiar fuente"}
         onSubmit={commit}
         busy={busy}
         error={error}
@@ -230,6 +312,7 @@ export default function AddPage() {
     );
   }
 
+  // ── Source picker ──────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <header className="flex flex-col gap-2">
