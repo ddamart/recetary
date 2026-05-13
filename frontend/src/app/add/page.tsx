@@ -40,6 +40,8 @@ export default function AddPage() {
   const [videoRecipes, setVideoRecipes] = useState<VideoRecipeItem[] | null>(null);
   const [pickerSelection, setPickerSelection] = useState<Set<number>>(new Set());
   const [recipeQueue, setRecipeQueue] = useState<VideoRecipeItem[]>([]);
+  const [currentQueueItem, setCurrentQueueItem] = useState<VideoRecipeItem | null>(null);
+  const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [queueTotal, setQueueTotal] = useState(0);
   const [backend, setBackend] = useState<string>("gemini");
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
@@ -73,6 +75,7 @@ export default function AddPage() {
   }, [draft, referenceBlob]);
 
   async function extractOne(item: VideoRecipeItem) {
+    setCurrentQueueItem(item);
     const form = new FormData();
     form.set("source_type", "video");
     form.set("url", url);
@@ -152,10 +155,11 @@ export default function AddPage() {
 
   function toggleAll() {
     if (!videoRecipes) return;
+    const selectable = videoRecipes.filter((r) => !savedIndices.has(r.index));
     setPickerSelection((prev) =>
-      prev.size === videoRecipes.length
+      selectable.every((r) => prev.has(r.index))
         ? new Set()
-        : new Set(videoRecipes.map((r) => r.index))
+        : new Set(selectable.map((r) => r.index))
     );
   }
 
@@ -179,6 +183,10 @@ export default function AddPage() {
         try { await api.uploadImage(created.id, imageBlob); } catch {}
       }
 
+      if (currentQueueItem) {
+        setSavedIndices((prev) => new Set([...prev, currentQueueItem.index]));
+      }
+
       if (recipeQueue.length > 0) {
         // More recipes to go — extract the next one
         const [next, ...rest] = recipeQueue;
@@ -198,7 +206,8 @@ export default function AddPage() {
 
   // ── Picker screen ──────────────────────────────────────────────────────────
   if (videoRecipes && !draft) {
-    const allSelected = pickerSelection.size === videoRecipes.length;
+    const selectableRecipes = videoRecipes.filter((r) => !savedIndices.has(r.index));
+    const allSelected = selectableRecipes.length > 0 && selectableRecipes.every((r) => pickerSelection.has(r.index));
     return (
       <div className="flex flex-col gap-6 max-w-3xl">
         <header className="flex flex-col gap-2">
@@ -210,26 +219,36 @@ export default function AddPage() {
 
         <div className="flex flex-col gap-3">
           {videoRecipes.map((item) => {
+            const saved = savedIndices.has(item.index);
             const selected = pickerSelection.has(item.index);
             return (
               <button
                 key={item.index}
                 type="button"
-                onClick={() => toggleSelection(item.index)}
-                disabled={busy}
-                className={`flex items-start gap-3 p-4 rounded-xl border text-left transition disabled:opacity-60 ${
-                  selected
-                    ? "border-accent bg-accent-soft"
-                    : "border-border bg-card hover:border-accent/40"
+                onClick={() => !saved && toggleSelection(item.index)}
+                disabled={busy || saved}
+                className={`flex items-start gap-3 p-4 rounded-xl border text-left transition ${
+                  saved
+                    ? "border-border bg-card opacity-50 cursor-default"
+                    : selected
+                      ? "border-accent bg-accent-soft"
+                      : "border-border bg-card hover:border-accent/40"
                 }`}
               >
                 <span className={`mt-0.5 flex-none w-4 h-4 rounded border flex items-center justify-center text-xs font-bold ${
-                  selected ? "bg-accent border-accent text-white" : "border-border"
+                  saved
+                    ? "bg-green-500 border-green-500 text-white"
+                    : selected
+                      ? "bg-accent border-accent text-white"
+                      : "border-border"
                 }`}>
-                  {selected ? "✓" : ""}
+                  {saved || selected ? "✓" : ""}
                 </span>
-                <span className="flex flex-col gap-0.5">
-                  <span className="font-medium text-sm">{item.title}</span>
+                <span className="flex flex-col gap-0.5 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{item.title}</span>
+                    {saved && <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">Guardada</span>}
+                  </span>
                   <span className="text-xs text-muted">{item.description}</span>
                 </span>
               </button>
