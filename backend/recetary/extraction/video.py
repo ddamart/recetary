@@ -6,6 +6,7 @@ Instagram falls back to instaloader (caption + image) if yt-dlp fails.
 """
 from __future__ import annotations
 
+import os
 import re
 import tempfile
 from dataclasses import dataclass
@@ -17,6 +18,20 @@ import httpx
 # Hard cap — videos larger than this are rejected outright.
 # Files between 20 MB and this limit are handled via the Gemini File API.
 _MAX_VIDEO_BYTES = 200 * 1024 * 1024
+
+# Instagram (and increasingly Twitter/X) block their graphql/query API for
+# unauthenticated requests, returning 403 even for public posts. yt-dlp can
+# reuse a logged-in browser session by reading cookies straight from the local
+# browser profile. Defaults to Firefox; override with RECETARY_COOKIES_BROWSER
+# (e.g. "chrome", "edge") or set it empty to disable cookie loading entirely.
+_COOKIES_BROWSER = os.environ.get("RECETARY_COOKIES_BROWSER", "firefox").strip()
+
+
+def _browser_cookie_opts() -> dict:
+    """yt-dlp options to load cookies from the local browser, if configured."""
+    if not _COOKIES_BROWSER:
+        return {}
+    return {"cookiesfrombrowser": (_COOKIES_BROWSER,)}
 
 
 class VideoExtractionError(Exception):
@@ -195,6 +210,7 @@ def _fetch_instagram(shortcode: str) -> VideoContent:
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
+            **_browser_cookie_opts(),
         }
 
         try:
@@ -274,9 +290,22 @@ def _fetch_instagram_fallback(shortcode: str) -> VideoContent:
     try:
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
     except Exception as e:
+        # Instagram rejects unauthenticated API calls (403 / empty response),
+        # which surfaces as opaque errors like "'NoneType' object is not
+        # subscriptable". This is almost never a private/deleted post — it is a
+        # missing browser session. Point the user at the real fix.
+        hint = (
+            f"set RECETARY_COOKIES_BROWSER to the browser where you are logged "
+            f"into Instagram (currently '{_COOKIES_BROWSER}')"
+            if _COOKIES_BROWSER
+            else "set RECETARY_COOKIES_BROWSER to a browser where you are logged into Instagram"
+        )
         raise VideoExtractionError(
-            f"Could not fetch Instagram post {shortcode} "
-            f"(may be private or deleted): {e}"
+            f"Could not fetch Instagram post {shortcode}. Instagram blocks "
+            f"unauthenticated requests, so this usually means the browser "
+            f"session cookies are missing or expired (not that the post is "
+            f"private or deleted). Try to {hint}, and make sure that browser "
+            f"is logged into Instagram. Underlying error: {e}"
         ) from e
 
     caption = post.caption or ""
