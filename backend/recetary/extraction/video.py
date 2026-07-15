@@ -6,6 +6,7 @@ Instagram falls back to instaloader (caption + image) if yt-dlp fails.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 import tempfile
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+
+_log = logging.getLogger(__name__)
 
 # Hard cap — videos larger than this are rejected outright.
 # Files between 20 MB and this limit are handled via the Gemini File API.
@@ -194,9 +197,12 @@ def _fetch_youtube(video_id: str) -> VideoContent:
 def _fetch_instagram(shortcode: str) -> VideoContent:
     """Fetch Instagram reel/post content.
 
-    Tries yt-dlp first to download the video (for Gemini processing).
-    Falls back to instaloader for caption + display image if yt-dlp fails
-    (e.g. image-only posts, private accounts).
+    Metadata (caption, thumbnail) and the video download are handled as two
+    independent steps. Instagram's CDN sometimes returns 500/429 for a reel's
+    video streams (typically DASH-only posts that require a separate
+    video+audio merge) even though the caption is available; in that case we
+    still return the caption instead of throwing everything away. Falls back to
+    instaloader only when yt-dlp cannot get metadata at all.
     """
     import yt_dlp
 
@@ -204,27 +210,55 @@ def _fetch_instagram(shortcode: str) -> VideoContent:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         outtmpl = str(Path(tmpdir) / "%(id)s.%(ext)s")
-        ydl_opts = {
-            "format": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+        base_opts = {
+            # Prefer a single progressive file to avoid the flaky DASH
+            # video+audio merge; fall back to DASH only if nothing else exists.
+            "format": "best[height<=720]/bestvideo[height<=720]+bestaudio/best",
             "outtmpl": outtmpl,
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
+            # Retry transient CDN errors (500/429) before giving up.
+            "retries": 3,
+            "fragment_retries": 3,
+            "extractor_retries": 3,
             **_browser_cookie_opts(),
         }
 
+        # Step 1: metadata only. If this fails, yt-dlp genuinely can't see the
+        # post — fall back to instaloader.
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(ig_url, download=True)
-
+            with yt_dlp.YoutubeDL({**base_opts, "skip_download": True}) as ydl:
+                info = ydl.extract_info(ig_url, download=False)
             if info is None:
                 raise VideoExtractionError("yt-dlp returned no info")
+        except VideoExtractionError:
+            raise
+        except Exception:
+            return _fetch_instagram_fallback(shortcode)
 
-            # Find the downloaded file
+        caption = info.get("description") or ""
+        source_url = info.get("webpage_url") or f"https://www.instagram.com/p/{shortcode}/"
+
+        # Fetch thumbnail
+        thumbnail_bytes = None
+        thumb_url = info.get("thumbnail")
+        if thumb_url:
+            try:
+                resp = httpx.get(thumb_url, timeout=10, follow_redirects=True)
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    thumbnail_bytes = resp.content
+            except httpx.HTTPError:
+                pass
+
+        # Step 2: video download. A CDN failure here (500/429) is not fatal —
+        # degrade to caption-only rather than losing the recipe text.
+        video_bytes = None
+        video_mime_type = "video/mp4"
+        try:
+            with yt_dlp.YoutubeDL(base_opts) as ydl:
+                ydl.download([ig_url])
             downloaded = list(Path(tmpdir).glob("*.*"))
-            video_bytes = None
-            video_mime_type = "video/mp4"
-
             if downloaded:
                 video_path = downloaded[0]
                 raw = video_path.read_bytes()
@@ -237,40 +271,30 @@ def _fetch_instagram(shortcode: str) -> VideoContent:
                 video_bytes = raw
                 ext = video_path.suffix.lstrip(".")
                 video_mime_type = f"video/{ext}" if ext else "video/mp4"
-
-            caption = info.get("description") or ""
-            source_url = info.get("webpage_url") or f"https://www.instagram.com/p/{shortcode}/"
-
-            # Fetch thumbnail
-            thumbnail_bytes = None
-            thumb_url = info.get("thumbnail")
-            if thumb_url:
-                try:
-                    resp = httpx.get(thumb_url, timeout=10, follow_redirects=True)
-                    if resp.status_code == 200 and len(resp.content) > 1000:
-                        thumbnail_bytes = resp.content
-                except httpx.HTTPError:
-                    pass
-
-            if not caption.strip() and video_bytes is None:
-                raise VideoExtractionError(
-                    f"Instagram post {shortcode} has no caption and no downloadable video"
-                )
-
-            return VideoContent(
-                text=caption,
-                thumbnail_bytes=thumbnail_bytes,
-                source_url=source_url,
-                platform="instagram",
-                video_bytes=video_bytes,
-                video_mime_type=video_mime_type,
-            )
-
         except VideoExtractionError:
             raise
-        except Exception:
-            # yt-dlp failed — fall back to instaloader (caption + image only)
-            return _fetch_instagram_fallback(shortcode)
+        except Exception as e:
+            _log.warning(
+                "Instagram %s: video download failed (%s); "
+                "continuing with caption only.",
+                shortcode, e,
+            )
+
+        if not caption.strip() and video_bytes is None:
+            raise VideoExtractionError(
+                f"Instagram post {shortcode} has no caption and its video "
+                f"could not be downloaded (Instagram CDN error). Nothing to "
+                f"extract a recipe from."
+            )
+
+        return VideoContent(
+            text=caption,
+            thumbnail_bytes=thumbnail_bytes,
+            source_url=source_url,
+            platform="instagram",
+            video_bytes=video_bytes,
+            video_mime_type=video_mime_type,
+        )
 
 
 def _fetch_instagram_fallback(shortcode: str) -> VideoContent:
