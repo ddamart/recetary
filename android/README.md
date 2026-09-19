@@ -5,7 +5,9 @@ Small offline companion app for browsing a Recetary SQLite database.
 ## Current scope
 
 - Import a copy of `data/recetary.db` with the Android file picker.
+- Import the `data/images/` folder to display recipe images offline.
 - Search recipes by title, subtitle, or source URL.
+- Browse results in pages and open a random matching recipe.
 - Open ingredients, preparation, and HTTP source links.
 - No recipe capture, backend, network service, or AI features.
 
@@ -26,5 +28,5 @@ The APK is written to
 or emulator from Android Studio or with `adb install`.
 
 To use the app, copy the desktop `data/recetary.db` to the phone and choose it
-with **Importar**. Images are not imported yet; the first version focuses on
-offline recipe lookup and details.
+with **Importar DB**. To display covers, copy the desktop `data/images/` folder
+to the phone and choose it with **Imágenes**. The app remains fully offline.

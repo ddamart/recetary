@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -16,9 +17,11 @@ import android.text.util.Linkify;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
@@ -30,9 +33,12 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Random;
 
 public class MainActivity extends Activity {
     private static final int PICK_DATABASE = 10;
+    private static final int PICK_IMAGES = 11;
+    private static final int PAGE_SIZE = 50;
     private static final int BG = Color.rgb(16, 19, 21);
     private static final int CARD = Color.rgb(28, 33, 36);
     private static final int BORDER = Color.rgb(54, 62, 66);
@@ -43,8 +49,11 @@ public class MainActivity extends Activity {
     private SQLiteDatabase database;
     private EditText search;
     private TextView status;
+    private Button loadMore;
     private RecipeAdapter adapter;
     private final ArrayList<RecipeRow> recipes = new ArrayList<>();
+    private String currentQuery = "";
+    private boolean hasMore;
 
     @Override
     public void onCreate(Bundle state) {
@@ -59,21 +68,40 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(20), dp(22), dp(20), dp(12));
+        root.setPadding(dp(20), dp(8), dp(20), dp(12));
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(dp(20), insets.getSystemWindowInsetTop() + dp(8), dp(20), dp(12));
+            return insets;
+        });
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text("◉  Recetary", 25, TEXT);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1));
-
-        Button importButton = button("Importar");
-        importButton.setOnClickListener(v -> chooseDatabase());
-        header.addView(importButton, new LinearLayout.LayoutParams(dp(112), dp(48)));
+        header.addView(title, new LinearLayout.LayoutParams(-1, dp(48)));
         root.addView(header);
 
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        Button importButton = button("Importar DB");
+        importButton.setOnClickListener(v -> chooseDatabase());
+        actions.addView(importButton, new LinearLayout.LayoutParams(0, dp(44), 1));
+
+        Button imagesButton = button("Imágenes");
+        imagesButton.setOnClickListener(v -> chooseImages());
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(0, dp(44), 1);
+        actionParams.setMargins(dp(8), 0, 0, 0);
+        actions.addView(imagesButton, actionParams);
+
+        Button randomButton = button("Aleatoria");
+        randomButton.setOnClickListener(v -> showRandomRecipe());
+        actionParams = new LinearLayout.LayoutParams(0, dp(44), 1);
+        actionParams.setMargins(dp(8), 0, 0, 0);
+        actions.addView(randomButton, actionParams);
+        root.addView(actions);
+
         TextView heading = text("Tu biblioteca", 14, MUTED);
-        heading.setPadding(dp(2), dp(18), 0, dp(8));
+        heading.setPadding(dp(2), dp(14), 0, dp(8));
         root.addView(heading);
 
         search = new EditText(this);
@@ -102,6 +130,9 @@ public class MainActivity extends Activity {
         list.setDivider(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         list.setDividerHeight(dp(10));
         adapter = new RecipeAdapter();
+        loadMore = button("Cargar más");
+        loadMore.setOnClickListener(v -> loadMoreRecipes());
+        list.addFooterView(loadMore, null, false);
         list.setAdapter(adapter);
         list.setOnItemClickListener(
                 (parent, view, position, id) -> showRecipe(recipes.get(position).id));
@@ -147,11 +178,23 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, PICK_DATABASE);
     }
 
+    private void chooseImages() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        startActivityForResult(intent, PICK_IMAGES);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != PICK_DATABASE || resultCode != RESULT_OK || data == null) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         try {
+            if (requestCode == PICK_IMAGES) {
+                copyImages(data.getData());
+                Toast.makeText(this, "Imágenes importadas", Toast.LENGTH_SHORT).show();
+                adapter.notifyDataSetChanged();
+                return;
+            }
+            if (requestCode != PICK_DATABASE) return;
             if (database != null) {
                 database.close();
                 database = null;
@@ -161,6 +204,50 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Base de datos importada", Toast.LENGTH_SHORT).show();
         } catch (Exception error) {
             Toast.makeText(this, "No se pudo importar la base de datos", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void copyImages(Uri tree) throws Exception {
+        File directory = new File(getFilesDir(), "images");
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw new IllegalStateException("Could not create image directory");
+        }
+        copyImagesFromTree(tree, directory);
+    }
+
+    private void copyImagesFromTree(Uri tree, File targetDirectory) throws Exception {
+        Uri children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
+                tree, android.provider.DocumentsContract.getTreeDocumentId(tree));
+        try (Cursor cursor = getContentResolver().query(
+                children, new String[]{
+                        android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                        android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE
+                }, null, null, null)) {
+            if (cursor == null) return;
+            while (cursor.moveToNext()) {
+                String id = cursor.getString(0);
+                String name = cursor.getString(1);
+                String mime = cursor.getString(2);
+                Uri document = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id);
+                if (android.provider.DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
+                    File childDirectory = new File(targetDirectory, name);
+                    if (!childDirectory.exists() && !childDirectory.mkdirs()) continue;
+                    copyImagesFromTree(document, childDirectory);
+                } else if (mime != null && mime.startsWith("image/")) {
+                    copyImage(document, new File(targetDirectory, name));
+                }
+            }
+        }
+    }
+
+    private void copyImage(Uri source, File target) throws Exception {
+        try (InputStream input = getContentResolver().openInputStream(source);
+             FileOutputStream output = new FileOutputStream(target)) {
+            if (input == null) throw new IllegalStateException("Empty image file");
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
         }
     }
 
@@ -193,36 +280,80 @@ public class MainActivity extends Activity {
 
     private void loadRecipes(String query) {
         if (database == null || adapter == null) return;
+        currentQuery = query.trim();
         recipes.clear();
-        String term = "%" + query.trim().toLowerCase(Locale.ROOT) + "%";
+        loadPage(false);
+    }
+
+    private void loadMoreRecipes() {
+        if (database == null || !hasMore) return;
+        loadPage(true);
+    }
+
+    private void loadPage(boolean append) {
+        String term = "%" + currentQuery.toLowerCase(Locale.ROOT) + "%";
+        int offset = append ? recipes.size() : 0;
         try (Cursor cursor = database.rawQuery(
-                "SELECT id, title, subtitle, source_ref FROM recipes " +
+                "SELECT id, title, subtitle, source_ref, image_path FROM recipes " +
                         "WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(subtitle, '')) LIKE ? " +
                         "OR LOWER(COALESCE(source_ref, '')) LIKE ? " +
-                        "ORDER BY created_at DESC",
-                new String[]{term, term, term})) {
+                        "ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                new String[]{term, term, term, String.valueOf(PAGE_SIZE), String.valueOf(offset)})) {
             while (cursor.moveToNext()) {
                 recipes.add(new RecipeRow(
                         cursor.getString(0),
                         cursor.getString(1),
                         cursor.isNull(2) ? "" : cursor.getString(2),
-                        cursor.isNull(3) ? "" : cursor.getString(3)));
+                        cursor.isNull(3) ? "" : cursor.getString(3),
+                        cursor.isNull(4) ? "" : cursor.getString(4)));
             }
+            hasMore = cursor.getCount() == PAGE_SIZE;
         } catch (Exception error) {
             status.setText("No se pudo leer la tabla de recetas.");
+            hasMore = false;
         }
         adapter.notifyDataSetChanged();
         status.setText(recipes.size() + (recipes.size() == 1 ? " receta" : " recetas"));
+        loadMore.setVisibility(hasMore ? View.VISIBLE : View.GONE);
+    }
+
+    private void showRandomRecipe() {
+        if (database == null) {
+            Toast.makeText(this, "Importa una base de datos para empezar", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String term = "%" + currentQuery.toLowerCase(Locale.ROOT) + "%";
+        try (Cursor cursor = database.rawQuery(
+                "SELECT id FROM recipes " +
+                        "WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(subtitle, '')) LIKE ? " +
+                        "OR LOWER(COALESCE(source_ref, '')) LIKE ? " +
+                        "ORDER BY RANDOM() LIMIT 1",
+                new String[]{term, term, term})) {
+            if (cursor.moveToFirst()) {
+                showRecipe(cursor.getString(0));
+                return;
+            }
+        }
+        if (recipes.isEmpty()) {
+            Toast.makeText(this, "No hay recetas para elegir", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        showRecipe(recipes.get(new Random().nextInt(recipes.size())).id);
     }
 
     private void showRecipe(String id) {
         try (Cursor recipe = database.rawQuery(
-                "SELECT title, subtitle, description, source_ref, servings, total_time_min " +
+                "SELECT title, subtitle, description, source_ref, servings, total_time_min, image_path " +
                         "FROM recipes WHERE id = ?", new String[]{id})) {
             if (!recipe.moveToFirst()) return;
             LinearLayout content = new LinearLayout(this);
             content.setOrientation(LinearLayout.VERTICAL);
             content.setPadding(dp(20), dp(4), dp(20), dp(12));
+
+            if (!recipe.isNull(6)) {
+                ImageView image = recipeImage(recipe.getString(6), -1, 180);
+                if (image != null) content.addView(image);
+            }
 
             TextView subtitle = text(
                     recipe.isNull(1) ? "" : recipe.getString(1), 16, MUTED);
@@ -326,25 +457,56 @@ public class MainActivity extends Activity {
             card.setPadding(dp(18), dp(16), dp(18), dp(16));
             card.setBackground(roundRect(CARD, BORDER, 16));
 
+            LinearLayout body = new LinearLayout(MainActivity.this);
+            body.setGravity(Gravity.CENTER_VERTICAL);
+            ImageView image = recipeImage(row.imagePath, 78, 78);
+            if (image != null) {
+                body.addView(image);
+            }
+            LinearLayout details = new LinearLayout(MainActivity.this);
+            details.setOrientation(LinearLayout.VERTICAL);
+            if (image != null) {
+                LinearLayout.LayoutParams detailsParams = new LinearLayout.LayoutParams(0, -2, 1);
+                detailsParams.setMargins(dp(14), 0, 0, 0);
+                body.addView(details, detailsParams);
+            } else {
+                body.addView(details, new LinearLayout.LayoutParams(-1, -2));
+            }
+
             TextView title = text(row.title, 18, TEXT);
             title.setTypeface(null, android.graphics.Typeface.BOLD);
             title.setMaxLines(2);
-            card.addView(title);
+            details.addView(title);
 
             if (!TextUtils.isEmpty(row.subtitle)) {
                 TextView subtitle = text(row.subtitle, 14, MUTED);
                 subtitle.setPadding(0, dp(6), 0, 0);
                 subtitle.setMaxLines(2);
-                card.addView(subtitle);
+                details.addView(subtitle);
             }
 
             if (!TextUtils.isEmpty(row.source)) {
                 TextView source = text(sourceLabel(row.source), 12, Color.rgb(87, 202, 166));
                 source.setPadding(0, dp(10), 0, 0);
-                card.addView(source);
+                details.addView(source);
             }
+            card.addView(body);
             return card;
         }
+    }
+
+    private ImageView recipeImage(String imagePath, int width, int height) {
+        if (TextUtils.isEmpty(imagePath)) return null;
+        File file = new File(getFilesDir(), "images/" + imagePath);
+        if (!file.isFile()) return null;
+        ImageView image = new ImageView(this);
+        image.setImageBitmap(BitmapFactory.decodeFile(file.getPath()));
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setBackground(roundRect(CARD, BORDER, 12));
+        image.setClipToOutline(true);
+        image.setLayoutParams(new LinearLayout.LayoutParams(
+                width < 0 ? -1 : dp(width), dp(height)));
+        return image;
     }
 
     private String sourceLabel(String source) {
@@ -359,12 +521,14 @@ public class MainActivity extends Activity {
         final String title;
         final String subtitle;
         final String source;
+        final String imagePath;
 
-        RecipeRow(String id, String title, String subtitle, String source) {
+        RecipeRow(String id, String title, String subtitle, String source, String imagePath) {
             this.id = id;
             this.title = title;
             this.subtitle = subtitle;
             this.source = source;
+            this.imagePath = imagePath;
         }
     }
 
