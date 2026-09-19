@@ -68,11 +68,7 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(20), dp(8), dp(20), dp(12));
-        root.setOnApplyWindowInsetsListener((view, insets) -> {
-            view.setPadding(dp(20), insets.getSystemWindowInsetTop() + dp(8), dp(20), dp(12));
-            return insets;
-        });
+        applySystemInsets(root, 8);
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -327,11 +323,7 @@ public class MainActivity extends Activity {
             LinearLayout page = new LinearLayout(this);
             page.setOrientation(LinearLayout.VERTICAL);
             page.setBackgroundColor(BG);
-            page.setPadding(dp(20), dp(8), dp(20), dp(12));
-            page.setOnApplyWindowInsetsListener((view, insets) -> {
-                view.setPadding(dp(20), insets.getSystemWindowInsetTop() + dp(8), dp(20), dp(12));
-                return insets;
-            });
+            applySystemInsets(page, 8);
 
             LinearLayout toolbar = new LinearLayout(this);
             toolbar.setGravity(Gravity.CENTER_VERTICAL);
@@ -411,6 +403,25 @@ public class MainActivity extends Activity {
         TextView view = text("\n" + value, 12, Color.rgb(87, 202, 166));
         view.setTypeface(null, android.graphics.Typeface.BOLD);
         return view;
+    }
+
+    private void applySystemInsets(View view, int topPadding) {
+        view.setPadding(dp(20), dp(topPadding), dp(20), dp(12));
+        view.setOnApplyWindowInsetsListener((target, insets) -> {
+            int top = 0;
+            int bottom = 0;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                top = bars.top;
+                bottom = bars.bottom;
+            } else {
+                top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+            target.setPadding(dp(20), top + dp(topPadding), dp(20), bottom + dp(20));
+            return insets;
+        });
+        view.requestApplyInsets();
     }
 
     private String metadata(int servings, Integer minutes) {
