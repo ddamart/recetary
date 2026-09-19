@@ -36,8 +36,7 @@ import java.util.Locale;
 import java.util.Random;
 
 public class MainActivity extends Activity {
-    private static final int PICK_DATABASE = 10;
-    private static final int PICK_IMAGES = 11;
+    private static final int PICK_LIBRARY = 10;
     private static final int PAGE_SIZE = 50;
     private static final int BG = Color.rgb(16, 19, 21);
     private static final int CARD = Color.rgb(28, 33, 36);
@@ -54,6 +53,7 @@ public class MainActivity extends Activity {
     private final ArrayList<RecipeRow> recipes = new ArrayList<>();
     private String currentQuery = "";
     private boolean hasMore;
+    private boolean detailOpen;
 
     @Override
     public void onCreate(Bundle state) {
@@ -83,19 +83,13 @@ public class MainActivity extends Activity {
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER_VERTICAL);
-        Button importButton = button("Importar DB");
+        Button importButton = button("Importar biblioteca");
         importButton.setOnClickListener(v -> chooseDatabase());
-        actions.addView(importButton, new LinearLayout.LayoutParams(0, dp(44), 1));
-
-        Button imagesButton = button("Imágenes");
-        imagesButton.setOnClickListener(v -> chooseImages());
-        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(0, dp(44), 1);
-        actionParams.setMargins(dp(8), 0, 0, 0);
-        actions.addView(imagesButton, actionParams);
+        actions.addView(importButton, new LinearLayout.LayoutParams(0, dp(44), 2));
 
         Button randomButton = button("Aleatoria");
         randomButton.setOnClickListener(v -> showRandomRecipe());
-        actionParams = new LinearLayout.LayoutParams(0, dp(44), 1);
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(0, dp(44), 1);
         actionParams.setMargins(dp(8), 0, 0, 0);
         actions.addView(randomButton, actionParams);
         root.addView(actions);
@@ -172,15 +166,8 @@ public class MainActivity extends Activity {
     }
 
     private void chooseDatabase() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("*/*");
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        startActivityForResult(intent, PICK_DATABASE);
-    }
-
-    private void chooseImages() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        startActivityForResult(intent, PICK_IMAGES);
+        startActivityForResult(intent, PICK_LIBRARY);
     }
 
     @Override
@@ -188,34 +175,35 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         try {
-            if (requestCode == PICK_IMAGES) {
-                copyImages(data.getData());
-                Toast.makeText(this, "Imágenes importadas", Toast.LENGTH_SHORT).show();
-                adapter.notifyDataSetChanged();
-                return;
-            }
-            if (requestCode != PICK_DATABASE) return;
+            if (requestCode != PICK_LIBRARY) return;
             if (database != null) {
                 database.close();
                 database = null;
             }
-            copyDatabase(data.getData());
+            importLibrary(data.getData());
             openStoredDatabase();
-            Toast.makeText(this, "Base de datos importada", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Biblioteca importada", Toast.LENGTH_SHORT).show();
         } catch (Exception error) {
-            Toast.makeText(this, "No se pudo importar la base de datos", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "No se pudo importar la biblioteca", Toast.LENGTH_LONG).show();
         }
     }
 
-    private void copyImages(Uri tree) throws Exception {
-        File directory = new File(getFilesDir(), "images");
-        if (!directory.exists() && !directory.mkdirs()) {
+    private void importLibrary(Uri tree) throws Exception {
+        File imageDirectory = new File(getFilesDir(), "images");
+        if (!imageDirectory.exists() && !imageDirectory.mkdirs()) {
             throw new IllegalStateException("Could not create image directory");
         }
-        copyImagesFromTree(tree, directory);
+        File databaseFile = new File(getFilesDir(), "recetary.db");
+        if (databaseFile.exists() && !databaseFile.delete()) {
+            throw new IllegalStateException("Could not replace database");
+        }
+        importLibraryFromTree(tree, imageDirectory, databaseFile);
+        if (!databaseFile.isFile()) {
+            throw new IllegalStateException("The selected folder has no recetary.db");
+        }
     }
 
-    private void copyImagesFromTree(Uri tree, File targetDirectory) throws Exception {
+    private void importLibraryFromTree(Uri tree, File imageDirectory, File databaseFile) throws Exception {
         Uri children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
                 tree, android.provider.DocumentsContract.getTreeDocumentId(tree));
         try (Cursor cursor = getContentResolver().query(
@@ -231,31 +219,20 @@ public class MainActivity extends Activity {
                 String mime = cursor.getString(2);
                 Uri document = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id);
                 if (android.provider.DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
-                    File childDirectory = new File(targetDirectory, name);
-                    if (!childDirectory.exists() && !childDirectory.mkdirs()) continue;
-                    copyImagesFromTree(document, childDirectory);
+                    importLibraryFromTree(document, imageDirectory, databaseFile);
+                } else if ("recetary.db".equalsIgnoreCase(name)) {
+                    copyFile(document, databaseFile);
                 } else if (mime != null && mime.startsWith("image/")) {
-                    copyImage(document, new File(targetDirectory, name));
+                    copyFile(document, new File(imageDirectory, name));
                 }
             }
         }
     }
 
-    private void copyImage(Uri source, File target) throws Exception {
+    private void copyFile(Uri source, File target) throws Exception {
         try (InputStream input = getContentResolver().openInputStream(source);
              FileOutputStream output = new FileOutputStream(target)) {
             if (input == null) throw new IllegalStateException("Empty image file");
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
-        }
-    }
-
-    private void copyDatabase(Uri source) throws Exception {
-        File target = new File(getFilesDir(), "recetary.db");
-        try (InputStream input = getContentResolver().openInputStream(source);
-             FileOutputStream output = new FileOutputStream(target)) {
-            if (input == null) throw new IllegalStateException("Empty database file");
             byte[] buffer = new byte[8192];
             int read;
             while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
@@ -346,6 +323,28 @@ public class MainActivity extends Activity {
                 "SELECT title, subtitle, description, source_ref, servings, total_time_min, image_path " +
                         "FROM recipes WHERE id = ?", new String[]{id})) {
             if (!recipe.moveToFirst()) return;
+            detailOpen = true;
+            LinearLayout page = new LinearLayout(this);
+            page.setOrientation(LinearLayout.VERTICAL);
+            page.setBackgroundColor(BG);
+            page.setPadding(dp(20), dp(8), dp(20), dp(12));
+            page.setOnApplyWindowInsetsListener((view, insets) -> {
+                view.setPadding(dp(20), insets.getSystemWindowInsetTop() + dp(8), dp(20), dp(12));
+                return insets;
+            });
+
+            LinearLayout toolbar = new LinearLayout(this);
+            toolbar.setGravity(Gravity.CENTER_VERTICAL);
+            Button back = button("‹  Volver");
+            back.setOnClickListener(v -> showMainPage());
+            toolbar.addView(back, new LinearLayout.LayoutParams(dp(120), dp(44)));
+            TextView pageTitle = text("Receta", 20, TEXT);
+            pageTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+            pageTitle.setGravity(Gravity.CENTER);
+            toolbar.addView(pageTitle, new LinearLayout.LayoutParams(0, dp(44), 1));
+            page.addView(toolbar);
+
+            ScrollView scroll = new ScrollView(this);
             LinearLayout content = new LinearLayout(this);
             content.setOrientation(LinearLayout.VERTICAL);
             content.setPadding(dp(20), dp(4), dp(20), dp(12));
@@ -387,13 +386,24 @@ public class MainActivity extends Activity {
                 content.addView(source);
             }
 
-            ScrollView scroll = new ScrollView(this);
             scroll.addView(content);
-            new AlertDialog.Builder(this)
-                    .setTitle(recipe.getString(0))
-                    .setView(scroll)
-                    .setPositiveButton("Cerrar", null)
-                    .show();
+            page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            setContentView(page);
+        }
+    }
+
+    private void showMainPage() {
+        detailOpen = false;
+        buildScreen();
+        loadRecipes(currentQuery);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (detailOpen) {
+            showMainPage();
+        } else {
+            super.onBackPressed();
         }
     }
 
