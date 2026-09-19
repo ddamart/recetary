@@ -95,6 +95,12 @@ export default function AddPage() {
     setError(null);
     setBusy(true);
     try {
+      if ((source === "url" || source === "video") && url.trim()) {
+        const existing = await api.checkSource(url.trim());
+        if (existing.duplicate) {
+          throw new Error(`Esta fuente ya está guardada como «${existing.title}».`);
+        }
+      }
       if (source === "video" && isYoutubeUrl(url)) {
         if (!url.trim()) throw new Error("Introduce una URL");
         const listing = await api.listVideoRecipes(url);

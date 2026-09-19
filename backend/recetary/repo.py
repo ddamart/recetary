@@ -24,21 +24,29 @@ class DuplicateSourceError(Exception):
         super().__init__(f"Source already imported as {title}")
 
 
-def _check_duplicate_source(
+def find_duplicate_source(
     conn: sqlite3.Connection,
     source_ref: Optional[str],
-) -> None:
+) -> Optional[tuple[str, str]]:
     identity = source_identity(source_ref or "")
     if not identity or identity[0] == "youtube":
-        return
+        return None
     row = conn.execute(
         "SELECT rs.recipe_id, r.title "
         "FROM recipe_sources rs JOIN recipes r ON r.id = rs.recipe_id "
         "WHERE rs.source_platform = ? AND rs.source_id = ?",
         identity,
     ).fetchone()
-    if row:
-        raise DuplicateSourceError(row["recipe_id"], row["title"])
+    return (row["recipe_id"], row["title"]) if row else None
+
+
+def _check_duplicate_source(
+    conn: sqlite3.Connection,
+    source_ref: Optional[str],
+) -> None:
+    duplicate = find_duplicate_source(conn, source_ref)
+    if duplicate:
+        raise DuplicateSourceError(*duplicate)
 
 
 def _register_source(

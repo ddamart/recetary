@@ -31,6 +31,16 @@ def list_tags() -> list[str]:
         return repo.list_tags(conn)
 
 
+@router.get("/source-check")
+def check_source(url: str = Query(..., min_length=1)) -> dict:
+    with db.get_conn() as conn:
+        duplicate = repo.find_duplicate_source(conn, url)
+    if not duplicate:
+        return {"duplicate": False}
+    recipe_id, title = duplicate
+    return {"duplicate": True, "recipe_id": recipe_id, "title": title}
+
+
 @router.get("", response_model=list[RecipeSummary])
 def list_recipes(
     limit: int = Query(24, ge=1, le=100),
