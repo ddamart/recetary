@@ -208,7 +208,13 @@ def test_search_source_url_matches_platform_url_variants(temp_db):
             conn,
             q="https://twitter.com/cook/status/123456789",
         )
+        instagram_id_results = search.search_recipes(conn, q="DdYem-CstWf")
+        youtube_id_results = search.search_recipes(conn, q="AbCdEfGhIjK")
+        twitter_id_results = search.search_recipes(conn, q="123456789")
 
     assert [r.id for r in instagram_results] == [instagram_id]
     assert [r.id for r in youtube_results] == [youtube_id]
     assert [r.id for r in twitter_results] == [twitter_id]
+    assert [r.id for r in instagram_id_results] == [instagram_id]
+    assert [r.id for r in youtube_id_results] == [youtube_id]
+    assert [r.id for r in twitter_id_results] == [twitter_id]

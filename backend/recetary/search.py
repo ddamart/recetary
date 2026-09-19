@@ -188,7 +188,11 @@ def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
 
     # Tier 1a: FTS5 prefix (fast, BM25-ranked) — best relevance ordering
     # With TEXT PK we must join on rowid to get the recipe id.
-    fts = "" if _source_identifier(q) else _fts_query(q)
+    fts = (
+        ""
+        if _source_identifier(q) or any(char in q for char in ":/?#&=-")
+        else _fts_query(q)
+    )
     if fts:
         rows = conn.execute(
             "SELECT r.id FROM recipes_fts f JOIN recipes r ON r.rowid = f.rowid "

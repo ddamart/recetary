@@ -49,3 +49,23 @@ def test_recipe_crud_flow(temp_db):
     response = client.delete(f"/recipes/{rid}")
     assert response.status_code == 204
     assert client.get(f"/recipes/{rid}").status_code == 404
+
+
+def test_duplicate_source_returns_conflict(temp_db):
+    client = _client()
+    payload = {
+        "title": "Primera",
+        "source_type": "video",
+        "source_ref": "https://www.instagram.com/reel/DdYem-CstWf/",
+        "steps": [{"text": "paso"}],
+    }
+    first = client.post("/recipes", json=payload)
+    assert first.status_code == 201
+
+    duplicate = dict(payload, title="Duplicada")
+    duplicate["source_ref"] = (
+        "https://www.instagram.com/inigoisaosakai/reel/DdYem-CstWf/"
+    )
+    response = client.post("/recipes", json=duplicate)
+    assert response.status_code == 409
+    assert "Primera" in response.json()["detail"]["message"]

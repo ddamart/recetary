@@ -45,7 +45,16 @@ def list_recipes(
 @router.post("", response_model=Recipe, status_code=status.HTTP_201_CREATED)
 def create_recipe(payload: RecipeCreate) -> Recipe:
     with db.get_conn() as conn:
-        recipe_id = repo.create_recipe(conn, payload)
+        try:
+            recipe_id = repo.create_recipe(conn, payload)
+        except repo.DuplicateSourceError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": f"Esta fuente ya está guardada como «{exc.title}».",
+                    "recipe_id": exc.recipe_id,
+                },
+            ) from exc
         recipe = repo.get_recipe(conn, recipe_id)
     assert recipe is not None
     return recipe
@@ -125,7 +134,16 @@ def get_recipe(recipe_id: str) -> Recipe:
 @router.put("/{recipe_id}", response_model=Recipe)
 def update_recipe(recipe_id: str, payload: RecipeCreate) -> Recipe:
     with db.get_conn() as conn:
-        updated = repo.update_recipe(conn, recipe_id, payload)
+        try:
+            updated = repo.update_recipe(conn, recipe_id, payload)
+        except repo.DuplicateSourceError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": f"Esta fuente ya está guardada como «{exc.title}».",
+                    "recipe_id": exc.recipe_id,
+                },
+            ) from exc
     if not updated:
         raise HTTPException(status_code=404, detail="recipe not found")
     return updated

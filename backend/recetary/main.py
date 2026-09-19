@@ -11,6 +11,8 @@ from . import db
 from .extraction.common import load_dotenv_once
 from .routers import extract, ingredients, recipes, search, style_variants
 
+db.init_db()
+
 app = FastAPI(title="Recetary", version="0.1.0")
 
 app.add_middleware(
