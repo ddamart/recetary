@@ -77,6 +77,12 @@ export const api = {
   },
   countRecipes: () => request<number>("/recipes/count"),
   listTags: () => request<string[]>("/recipes/tags"),
+  checkSource: (url: string) => {
+    const qs = new URLSearchParams({ url });
+    return request<{ duplicate: boolean; recipe_id?: string; title?: string }>(
+      `/recipes/source-check?${qs.toString()}`,
+    );
+  },
   listIngredients: (params?: { q?: string; limit?: number }) => {
     const qs = new URLSearchParams();
     if (params?.q) qs.set("q", params.q);

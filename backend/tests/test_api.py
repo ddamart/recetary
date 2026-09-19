@@ -61,6 +61,10 @@ def test_duplicate_source_returns_conflict(temp_db):
     }
     first = client.post("/recipes", json=payload)
     assert first.status_code == 201
+    check = client.get("/recipes/source-check", params={"url": payload["source_ref"]})
+    assert check.status_code == 200
+    assert check.json()["duplicate"] is True
+    assert check.json()["title"] == "Primera"
 
     duplicate = dict(payload, title="Duplicada")
     duplicate["source_ref"] = (
@@ -69,3 +73,13 @@ def test_duplicate_source_returns_conflict(temp_db):
     response = client.post("/recipes", json=duplicate)
     assert response.status_code == 409
     assert "Primera" in response.json()["detail"]["message"]
+
+
+def test_source_check_happens_without_extraction(temp_db):
+    client = _client()
+    response = client.get(
+        "/recipes/source-check",
+        params={"url": "https://www.instagram.com/reel/not-yet-imported/"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"duplicate": False}
