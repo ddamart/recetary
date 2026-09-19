@@ -11,7 +11,7 @@ from ..imagen import ImageGenerationError
 DEFAULT_URL = "http://localhost:8500"
 TIMEOUT = 180  # LoRA load + generation can take longer; generous timeout
 DEFAULT_STEPS = 8  # schnell: quality improves meaningfully 4→8, diminishing returns beyond
-DEFAULT_LORA_STEPS = 20  # dev-trained LoRAs benefit from more steps
+DEFAULT_LORA_STEPS = 28  # dev-trained LoRAs benefit from more steps
 
 
 def _get_url() -> str:
@@ -77,9 +77,9 @@ def generate(
 
 def generate_with_lora(
     prompt: str,
-    lora_repo: str,
-    lora_scale: float = 0.85,
+    lora_scale: float = 0.65,
     num_steps: int = DEFAULT_LORA_STEPS,
+    guidance_scale: float = 3.5, # Lower is better for the "painterly" look
 ) -> bytes:
     """Generate via the local FLUX server using a LoRA adapter. Returns PNG bytes."""
     url = _get_url()
@@ -89,11 +89,13 @@ def generate_with_lora(
             f"{url}/generate-lora",
             json={
                 "prompt": prompt,
-                "lora_repo": lora_repo,
+                "lora_repo": "strangerzonehf/Ghibli-Flux-Cartoon-LoRA",
                 "lora_scale": lora_scale,
+                "guidance_scale": guidance_scale,
                 "width": 1024,
                 "height": 768,
                 "num_inference_steps": num_steps,
+                "seed": -1 # Randomize by default for variety
             },
             timeout=TIMEOUT,
         )

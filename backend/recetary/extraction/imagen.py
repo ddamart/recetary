@@ -62,15 +62,16 @@ STYLES: dict[str, dict[str, str]] = {
     "ghibli": {
         "label": "Ghibli",
         "prompt": (
-            "Studio Ghibli anime cozy illustration of {dish}. "
-            "Clean dark outlines, soft warm golden light from a window, "
+            "Ghibli Art style, cozy anime atmosphere highly detailed food illustration of {dish}. "
+            "Matte finish, low contrast, muted colors, soft edges, " 
+            "hand-drawn cel animation, 90s retro anime aesthetic, watercolor wash, film grain, vintage feel"
         ),
     },
     "ghibli-3": {
         "label": "Ghibli Sky",
         "prompt": (
-            "ghibsky illustration of {dish}. "
-            "Hand-painted Ghibli-inspired art style, lush natural scenery, atmospheric sky, "
+            "Ghibli illustration of {dish}. "
+            "Hand-painted Ghibli-inspired art style, "
             "soft warm cinematic lighting, nostalgic and whimsical aesthetic. "
         ),
     },
@@ -382,24 +383,22 @@ def generate_recipe_image(
     )
 
     # ghibli-3 uses the flux-ghibsky-illustration LoRA — local backend only.
-    if style == "ghibli-3":
-        from .image_backends.local_flux import generate_with_lora
-        return generate_with_lora(
-            prompt,
-            lora_repo="aleksa-codes/flux-ghibsky-illustration",
-        )
+    #from .image_backends.local_flux import generate_with_lora
+    #return generate_with_lora(
+    #    prompt
+    #)
 
     # ghibli-new: when the user hasn't provided their own photo, seed img2img
     # with a randomly chosen style reference so FLUX picks up the kitchen
     # setting, plate composition, and warm palette of the target style.
-    if ( style == "ghibli-new" or style == "ghibli" ) and reference_image_bytes is None:
-        style_ref = _load_random_ghibli_ref()
-        if style_ref:
-            return _call_backend(
-                prompt,
-                style_ref,
-                strength=_GHIBLI_STYLE_STRENGTH,
-            )
+    #if ( style == "ghibli-new" or style == "ghibli" ) and reference_image_bytes is None:
+    #    style_ref = _load_random_ghibli_ref()
+    #    if style_ref:
+    #        return _call_backend(
+    #            prompt,
+    #            style_ref,
+    #            strength=_GHIBLI_STYLE_STRENGTH,
+    #        )
 
     return _call_backend(
         prompt,
