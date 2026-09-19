@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from .extraction.video import source_identity
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = REPO_ROOT / "data" / "recetary.db"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
@@ -57,4 +59,26 @@ def init_db(path: Path | None = None) -> Path:
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     with get_conn(target) as conn:
         conn.executescript(schema)
+        _sync_recipe_sources(conn)
     return target
+
+
+def _sync_recipe_sources(conn: sqlite3.Connection) -> None:
+    """Register existing one-recipe sources without deleting legacy rows."""
+    if not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'recipes'"
+    ).fetchone():
+        return
+    rows = conn.execute(
+        "SELECT id, source_ref FROM recipes "
+        "WHERE source_ref IS NOT NULL ORDER BY created_at, id"
+    ).fetchall()
+    for row in rows:
+        identity = source_identity(row["source_ref"])
+        if not identity or identity[0] == "youtube":
+            continue
+        conn.execute(
+            "INSERT OR IGNORE INTO recipe_sources(source_platform, source_id, recipe_id) "
+            "VALUES (?, ?, ?)",
+            (*identity, row["id"]),
+        )

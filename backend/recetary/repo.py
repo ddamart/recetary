@@ -5,6 +5,7 @@ import sqlite3
 import uuid
 from typing import Optional
 
+from .extraction.video import source_identity
 from .models import (
     IngredientOut,
     Recipe,
@@ -14,6 +15,44 @@ from .models import (
     StepOut,
 )
 from .quantities import parse_quantity
+
+
+class DuplicateSourceError(Exception):
+    def __init__(self, recipe_id: str, title: str):
+        self.recipe_id = recipe_id
+        self.title = title
+        super().__init__(f"Source already imported as {title}")
+
+
+def _check_duplicate_source(
+    conn: sqlite3.Connection,
+    source_ref: Optional[str],
+) -> None:
+    identity = source_identity(source_ref or "")
+    if not identity or identity[0] == "youtube":
+        return
+    row = conn.execute(
+        "SELECT rs.recipe_id, r.title "
+        "FROM recipe_sources rs JOIN recipes r ON r.id = rs.recipe_id "
+        "WHERE rs.source_platform = ? AND rs.source_id = ?",
+        identity,
+    ).fetchone()
+    if row:
+        raise DuplicateSourceError(row["recipe_id"], row["title"])
+
+
+def _register_source(
+    conn: sqlite3.Connection,
+    recipe_id: str,
+    source_ref: Optional[str],
+) -> None:
+    identity = source_identity(source_ref or "")
+    if not identity or identity[0] == "youtube":
+        return
+    conn.execute(
+        "INSERT INTO recipe_sources(source_platform, source_id, recipe_id) VALUES (?, ?, ?)",
+        (*identity, recipe_id),
+    )
 
 
 def upsert_ingredient(conn: sqlite3.Connection, name: str, category: str) -> int:
@@ -35,6 +74,7 @@ def upsert_ingredient(conn: sqlite3.Connection, name: str, category: str) -> int
 
 
 def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> str:
+    _check_duplicate_source(conn, payload.source_ref)
     recipe_id = str(uuid.uuid4())
     conn.execute(
         """
@@ -109,6 +149,7 @@ def create_recipe(conn: sqlite3.Connection, payload: RecipeCreate) -> str:
             (recipe_id, tag),
         )
 
+    _register_source(conn, recipe_id, payload.source_ref)
     return recipe_id
 
 
@@ -274,6 +315,19 @@ def update_recipe(
     row = conn.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
     if not row:
         return None
+    old = conn.execute(
+        "SELECT source_ref FROM recipes WHERE id = ?", (recipe_id,)
+    ).fetchone()
+    old_identity = source_identity(old["source_ref"] or "") if old else None
+    new_identity = source_identity(payload.source_ref or "")
+    if new_identity != old_identity:
+        _check_duplicate_source(conn, payload.source_ref)
+        if old_identity and old_identity[0] != "youtube":
+            conn.execute(
+                "DELETE FROM recipe_sources WHERE source_platform = ? "
+                "AND source_id = ? AND recipe_id = ?",
+                (*old_identity, recipe_id),
+            )
     conn.execute(
         """
         UPDATE recipes SET
@@ -333,6 +387,8 @@ def update_recipe(
             "INSERT OR IGNORE INTO tags(recipe_id, tag) VALUES (?, ?)",
             (recipe_id, tag),
         )
+    if new_identity != old_identity:
+        _register_source(conn, recipe_id, payload.source_ref)
     return get_recipe(conn, recipe_id)
 
 

@@ -93,6 +93,20 @@ def _extract_twitter_status_id(url: str) -> Optional[str]:
     return None
 
 
+def source_identity(url: str) -> Optional[tuple[str, str]]:
+    """Return the stable platform/id pair for a supported video URL."""
+    instagram_id = _extract_instagram_shortcode(url)
+    if instagram_id:
+        return "instagram", instagram_id
+    youtube_id = _extract_youtube_id(url)
+    if youtube_id:
+        return "youtube", youtube_id
+    twitter_id = _extract_twitter_status_id(url)
+    if twitter_id:
+        return "twitter", twitter_id
+    return None
+
+
 # ---------------------------------------------------------------------------
 # YouTube
 # ---------------------------------------------------------------------------

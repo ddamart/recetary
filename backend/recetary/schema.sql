@@ -65,6 +65,19 @@ CREATE TABLE IF NOT EXISTS tags (
 
 CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag);
 
+-- One source can produce multiple recipes on YouTube, but Instagram/X posts
+-- represent one recipe in the import flow. Only those one-recipe platforms
+-- are registered here, so their platform/id pair can be unique.
+CREATE TABLE IF NOT EXISTS recipe_sources (
+    source_platform TEXT NOT NULL,
+    source_id       TEXT NOT NULL,
+    recipe_id       TEXT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    PRIMARY KEY (source_platform, source_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_sources_recipe
+    ON recipe_sources(recipe_id);
+
 -- Full-text search over recipe metadata.
 -- Uses implicit rowid since recipes.id is TEXT (FTS5 requires integer rowid).
 CREATE VIRTUAL TABLE IF NOT EXISTS recipes_fts USING fts5(

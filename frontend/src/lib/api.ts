@@ -29,7 +29,16 @@ async function request<T>(
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new ApiError(response.status, text || response.statusText);
+    let message = text || response.statusText;
+    try {
+      const body = JSON.parse(text);
+      message = typeof body.detail === "string"
+        ? body.detail
+        : body.detail?.message ?? message;
+    } catch {
+      // Keep the raw response when it is not JSON.
+    }
+    throw new ApiError(response.status, message);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
