@@ -18,7 +18,7 @@ const SOURCE_OPTIONS: { kind: SourceKind; label: string; icon: string; help: str
 ];
 
 function isTwitterUrl(url: string)   { return /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url); }
-function isInstagramUrl(url: string) { return /instagram\.com\/(?:reel|reels|p)\/[\w-]+/.test(url); }
+function isInstagramUrl(url: string) { return /instagram\.com\/(?:[^/?#]+\/)?(?:reel|reels|p)\/[\w-]+/.test(url); }
 function isYoutubeUrl(url: string)   { return /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]{11}/.test(url); }
 
 export default function AddPage() {
