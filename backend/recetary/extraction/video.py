@@ -61,7 +61,7 @@ _YT_PATTERNS = [
 ]
 
 _IG_PATTERNS = [
-    re.compile(r"instagram\.com/(?:reel|reels|p)/([\w-]+)"),
+    re.compile(r"instagram\.com/(?:[^/?#]+/)?(?:reel|reels|p)/([\w-]+)"),
 ]
 
 _TW_PATTERNS = [
