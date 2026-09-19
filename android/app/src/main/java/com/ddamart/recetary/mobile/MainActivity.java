@@ -54,6 +54,7 @@ public class MainActivity extends Activity {
     private String currentQuery = "";
     private boolean hasMore;
     private boolean detailOpen;
+    private final int randomSeed = new Random().nextInt(Integer.MAX_VALUE);
 
     @Override
     public void onCreate(Bundle state) {
@@ -266,12 +267,20 @@ public class MainActivity extends Activity {
     private void loadPage(boolean append) {
         String term = "%" + currentQuery.toLowerCase(Locale.ROOT) + "%";
         int offset = append ? recipes.size() : 0;
+        boolean randomOrder = currentQuery.isEmpty();
+        String order = randomOrder
+                ? "ORDER BY ((rowid * 1103515245 + ?) & 2147483647)"
+                : "ORDER BY created_at DESC";
+        String[] args = randomOrder
+                ? new String[]{term, term, term, String.valueOf(randomSeed),
+                        String.valueOf(PAGE_SIZE), String.valueOf(offset)}
+                : new String[]{term, term, term, String.valueOf(PAGE_SIZE),
+                        String.valueOf(offset)};
         try (Cursor cursor = database.rawQuery(
                 "SELECT id, title, subtitle, source_ref, image_path FROM recipes " +
                         "WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(subtitle, '')) LIKE ? " +
                         "OR LOWER(COALESCE(source_ref, '')) LIKE ? " +
-                        "ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                new String[]{term, term, term, String.valueOf(PAGE_SIZE), String.valueOf(offset)})) {
+                        order + " LIMIT ? OFFSET ?", args)) {
             while (cursor.moveToNext()) {
                 recipes.add(new RecipeRow(
                         cursor.getString(0),
@@ -345,6 +354,11 @@ public class MainActivity extends Activity {
                 ImageView image = recipeImage(recipe.getString(6), -1, 180);
                 if (image != null) content.addView(image);
             }
+
+            TextView title = text(recipe.getString(0), 26, TEXT);
+            title.setTypeface(null, android.graphics.Typeface.BOLD);
+            title.setPadding(0, dp(14), 0, dp(4));
+            content.addView(title);
 
             TextView subtitle = text(
                     recipe.isNull(1) ? "" : recipe.getString(1), 16, MUTED);
