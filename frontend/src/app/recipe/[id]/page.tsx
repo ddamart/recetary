@@ -52,6 +52,16 @@ export default async function RecipePage(props: PageProps<"/recipe/[id]">) {
               {recipe.description}
             </p>
           )}
+          {recipe.source_ref && /^https?:\/\//i.test(recipe.source_ref) && (
+            <a
+              href={recipe.source_ref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-accent hover:underline w-fit"
+            >
+              {recipe.source_ref}
+            </a>
+          )}
           <dl className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-sm">
             <div>
               <dt className="text-xs uppercase text-muted">Total</dt>

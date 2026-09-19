@@ -169,3 +169,11 @@ def test_search_title_infix_substring(temp_db):
         results = search.search_recipes(conn, q="soba")
     assert any(r.id == yaki_id for r in results)
     assert len(results) == 1
+
+
+def test_search_source_url_substring(temp_db):
+    source = "https://www.youtube.com/watch?v=recipe123"
+    with db.get_conn() as conn:
+        recipe_id = _seed(conn, title="Pollo coreano", source_ref=source)
+        results = search.search_recipes(conn, q="recipe123")
+    assert [r.id for r in results] == [recipe_id]

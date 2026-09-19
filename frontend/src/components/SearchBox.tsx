@@ -141,7 +141,7 @@ export function SearchBox({
               submit();
             }
           }}
-          placeholder="Filtra por título..."
+          placeholder="Filtra por título o URL..."
           className="flex-1 min-w-[200px] px-3 py-2 text-sm rounded-lg border border-border bg-card focus:border-accent outline-none"
         />
         <button
