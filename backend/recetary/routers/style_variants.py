@@ -13,7 +13,7 @@ from ..extraction.imagen import STYLES, generate_recipe_image
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/style-variants", tags=["style-variants"])
 
-VARIANTS_PER_STYLE = 10
+VARIANTS_PER_STYLE = 5
 
 _state: dict = {
     "running": False,
@@ -117,8 +117,8 @@ def start_generation() -> dict:
         ).fetchall()
 
     recipes = [(r["id"], r["title"], r["subtitle"], r["description"]) for r in rows]
-    styles = ["ghibli-new"]
-
+    styles = ["ghibli","ghibli-3", "watercolor", "minimal", "ghibli-new"]
+ 
     thread = threading.Thread(
         target=_run_generation,
         args=(recipes, styles),
