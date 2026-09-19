@@ -18,6 +18,11 @@ from typing import Iterable, Optional
 
 from rapidfuzz import fuzz, process
 
+from .extraction.video import (
+    _extract_instagram_shortcode,
+    _extract_twitter_status_id,
+    _extract_youtube_id,
+)
 from .models import RecipeMatch
 
 
@@ -132,6 +137,14 @@ def _strip_diacritics(s: str) -> str:
     )
 
 
+def _source_identifier(q: str) -> Optional[str]:
+    return (
+        _extract_instagram_shortcode(q)
+        or _extract_youtube_id(q)
+        or _extract_twitter_status_id(q)
+    )
+
+
 def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
     """SQL LIKE substring match on title, subtitle, description, and source URL.
 
@@ -149,6 +162,9 @@ def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
             stem = clean[: -len(suffix)]
             patterns.append(f"%{stem}%")
             break
+    identifier = _source_identifier(q)
+    if identifier:
+        patterns.append(f"%{identifier.lower()}%")
     # Build OR conditions for all patterns
     conditions = " OR ".join(
         "(LOWER(strip_diacritics(title)) LIKE ? "
@@ -172,7 +188,7 @@ def _title_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
 
     # Tier 1a: FTS5 prefix (fast, BM25-ranked) — best relevance ordering
     # With TEXT PK we must join on rowid to get the recipe id.
-    fts = _fts_query(q)
+    fts = "" if _source_identifier(q) else _fts_query(q)
     if fts:
         rows = conn.execute(
             "SELECT r.id FROM recipes_fts f JOIN recipes r ON r.rowid = f.rowid "

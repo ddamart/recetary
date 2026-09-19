@@ -177,3 +177,38 @@ def test_search_source_url_substring(temp_db):
         recipe_id = _seed(conn, title="Pollo coreano", source_ref=source)
         results = search.search_recipes(conn, q="recipe123")
     assert [r.id for r in results] == [recipe_id]
+
+
+def test_search_source_url_matches_platform_url_variants(temp_db):
+    with db.get_conn() as conn:
+        instagram_id = _seed(
+            conn,
+            title="Arroz de Instagram",
+            source_ref="https://www.instagram.com/reel/DdYem-CstWf/",
+        )
+        youtube_id = _seed(
+            conn,
+            title="Pollo de YouTube",
+            source_ref="https://www.youtube.com/watch?v=AbCdEfGhIjK",
+        )
+        twitter_id = _seed(
+            conn,
+            title="Pasta de X",
+            source_ref="https://x.com/i/status/123456789",
+        )
+        instagram_results = search.search_recipes(
+            conn,
+            q="https://www.instagram.com/inigoisaosakai/reel/DdYem-CstWf/",
+        )
+        youtube_results = search.search_recipes(
+            conn,
+            q="https://youtu.be/AbCdEfGhIjK",
+        )
+        twitter_results = search.search_recipes(
+            conn,
+            q="https://twitter.com/cook/status/123456789",
+        )
+
+    assert [r.id for r in instagram_results] == [instagram_id]
+    assert [r.id for r in youtube_results] == [youtube_id]
+    assert [r.id for r in twitter_results] == [twitter_id]
