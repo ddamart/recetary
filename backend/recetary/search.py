@@ -133,7 +133,7 @@ def _strip_diacritics(s: str) -> str:
 
 
 def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
-    """SQL LIKE substring match on title, subtitle, and description.
+    """SQL LIKE substring match on title, subtitle, description, and source URL.
 
     Uses strip_diacritics() so 'asiatica' matches 'asiática'.
     Also tries gender-stem variants ('asiatica' → 'asiatic%') so that
@@ -153,10 +153,11 @@ def _like_match_ids(conn: sqlite3.Connection, q: str) -> list[str]:
     conditions = " OR ".join(
         "(LOWER(strip_diacritics(title)) LIKE ? "
         "OR LOWER(strip_diacritics(COALESCE(subtitle, ''))) LIKE ? "
-        "OR LOWER(strip_diacritics(COALESCE(description, ''))) LIKE ?)"
+        "OR LOWER(strip_diacritics(COALESCE(description, ''))) LIKE ? "
+        "OR LOWER(strip_diacritics(COALESCE(source_ref, ''))) LIKE ?)"
         for _ in patterns
     )
-    params = tuple(p for pat in patterns for p in (pat, pat, pat))
+    params = tuple(p for pat in patterns for p in (pat, pat, pat, pat))
     rows = conn.execute(
         f"SELECT id FROM recipes WHERE {conditions} ORDER BY created_at DESC",
         params,
