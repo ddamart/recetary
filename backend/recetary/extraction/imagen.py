@@ -327,6 +327,7 @@ def _call_backend(
     reference_image_bytes: bytes | None = None,
     strength: float = 0.65,
     num_steps: int = 8,
+    seed: int | None = None,
 ) -> bytes:
     """Dispatch image generation to the configured backend.
 
@@ -336,11 +337,13 @@ def _call_backend(
 
     if backend == "together":
         from .image_backends.together import generate
-        return generate(prompt)
+        return generate(prompt, seed=seed, steps=num_steps)
 
     if backend == "local":
         from .image_backends.local_flux import generate
-        return generate(prompt, reference_image_bytes, strength=strength, num_steps=num_steps)
+        return generate(
+            prompt, reference_image_bytes, strength=strength, num_steps=num_steps, seed=seed
+        )
 
     if backend == "imagen":
         api_key = _get_api_key()
@@ -351,6 +354,11 @@ def _call_backend(
         f"Unknown IMAGE_BACKEND={backend!r}. "
         f"Valid options: {', '.join(sorted(VALID_BACKENDS))}"
     )
+
+
+def generate_benchmark_image(prompt: str, seed: int, num_steps: int = 8) -> bytes:
+    """Generate a fixed prompt without the production translation/style pipeline."""
+    return _call_backend(prompt, num_steps=num_steps, seed=seed)
 
 
 def generate_recipe_image(

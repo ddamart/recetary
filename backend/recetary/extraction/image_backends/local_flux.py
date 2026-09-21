@@ -24,6 +24,7 @@ def generate(
     reference_image_bytes: bytes | None = None,
     strength: float = 0.65,
     num_steps: int = DEFAULT_STEPS,
+    seed: int | None = None,
 ) -> bytes:
     """Generate an image via the local FLUX server. Returns PNG bytes.
 
@@ -56,6 +57,7 @@ def generate(
                     "width": 1024,
                     "height": 768,
                     "num_inference_steps": num_steps,
+                    "seed": seed,
                 },
                 timeout=TIMEOUT,
             )

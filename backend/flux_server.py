@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 
@@ -31,7 +32,8 @@ from pydantic import BaseModel
 logger = logging.getLogger("flux_server")
 logging.basicConfig(level=logging.INFO)
 
-MODEL_ID = "black-forest-labs/FLUX.1-schnell"
+DEFAULT_MODEL_ID = "black-forest-labs/FLUX.1-schnell"
+MODEL_ID = os.environ.get("LOCAL_FLUX_MODEL", DEFAULT_MODEL_ID)
 
 pipe: FluxPipeline | None = None
 img2img_pipe: FluxImg2ImgPipeline | None = None
@@ -108,6 +110,18 @@ class GenerateRequest(BaseModel):
     width: int = 1024
     height: int = 768
     num_inference_steps: int = 4
+    seed: int | None = None
+
+
+@app.get("/info")
+def info() -> dict[str, object]:
+    memory: dict[str, int] = {}
+    if torch.cuda.is_available():
+        memory = {
+            "vram_allocated_bytes": torch.cuda.memory_allocated(),
+            "vram_reserved_bytes": torch.cuda.memory_reserved(),
+        }
+    return {"model": MODEL_ID, "device": "cuda" if torch.cuda.is_available() else "cpu", **memory}
 
 
 @app.post("/generate")
@@ -128,6 +142,9 @@ def generate(req: GenerateRequest):
             height=req.height,
             num_inference_steps=req.num_inference_steps,
             guidance_scale=0.0,
+            generator=torch.Generator(device="cuda").manual_seed(req.seed)
+            if req.seed is not None
+            else None,
         ).images[0]
 
         buf = io.BytesIO()

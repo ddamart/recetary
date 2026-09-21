@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -18,7 +19,7 @@ from .extraction import pdf as pdf_io
 from .extraction import url as url_io
 from .extraction import video as video_io
 from .extraction.video import VideoExtractionError
-from .models import RecipeCreate, SourceType
+from .models import RecipeCreate
 
 # Windows consoles default to cp1252; force UTF-8 so Spanish text renders.
 for _stream in (sys.stdout, sys.stderr):
@@ -288,7 +289,7 @@ def cmd_generate_images(args: argparse.Namespace) -> int:
     for index, r in enumerate(recipes, start=1):
         print(f"[{index:>3}/{len(recipes)}]  {r.title}")
         if r.image_path and not args.force:
-            print(f"    · already has image, skipping")
+            print("    · already has image, skipping")
             skipped += 1
             continue
 
@@ -373,7 +374,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--style", default="ghibli", help="Image style (default: ghibli)")
     p_gen.set_defaults(func=cmd_generate_images)
 
+    p_bench = sub.add_parser("benchmark-images", help="Compare image backends on fixed prompts")
+    p_bench.add_argument("--backend", action="append", dest="backends",
+                         choices=("imagen", "together", "local"))
+    p_bench.add_argument("--output", default="data/image-benchmark")
+    p_bench.add_argument("--seed", type=int, default=20260921)
+    p_bench.add_argument("--steps", type=int, default=8)
+    p_bench.set_defaults(func=lambda args: _run_image_benchmark(args))
+
     return parser
+
+
+def _run_image_benchmark(args: argparse.Namespace) -> int:
+    from .benchmark_images import run
+    backends = args.backends or [os.environ.get("IMAGE_BACKEND", "imagen").lower()]
+    return run(Path(args.output), backends, args.seed, args.steps)
 
 
 def main(argv: list[str] | None = None) -> int:

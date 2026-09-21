@@ -127,6 +127,49 @@ when `IMAGE_BACKEND=local` is set in `.env`. To run it manually:
 ```
 
 Defaults to `http://localhost:8500`. Override with `LOCAL_FLUX_URL` env var.
+Set `LOCAL_FLUX_MODEL` before starting the server to test another compatible
+Diffusers model; changing it requires a server restart. The production default
+remains Imagen.
+
+### Image benchmark
+
+The benchmark uses three fixed food prompts and deterministic seeds. It writes
+one PNG per backend/recipe and `report.json` with the selected model, seed,
+steps, latency, output size, and error text. It does not download weights or
+change the production backend:
+
+```powershell
+# Local only (server must already be running)
+.\.venv\Scripts\recetary.exe benchmark-images --backend local --output data/image-benchmark
+
+# Compare configured backends; cloud backends require their API keys
+.\.venv\Scripts\recetary.exe benchmark-images `
+  --backend imagen --backend together --backend local `
+  --seed 20260921 --steps 8
+```
+
+Compare candidates only at the same resolution, prompt set, seed, and step
+count. Prefer a candidate only when it improves visual fidelity and food
+identity without unacceptable latency, VRAM, errors, or license restrictions.
+The benchmark records latency and errors; local `/info` exposes model/device
+and current CUDA allocation when queried, but VRAM is not available for cloud
+backends. Imagen does not expose a reproducible seed in this path, so its
+seed is recorded as a comparison label, not a determinism guarantee.
+
+Candidate facts (verify before deployment):
+
+| Candidate | Practical configuration | License/hardware notes |
+|---|---|---|
+| FLUX.2 Klein 4B | Apache 2.0; official guidance ranges from ~8 GB (repo) to ~13 GB (model card) | 9B is under BFL's non-commercial license; no official numeric 9B VRAM figure |
+| Qwen Image | 20B, Apache 2.0 | Official sources reviewed do not publish numeric VRAM requirements |
+| Z-Image-Turbo | 6B, Apache 2.0; official README says it fits within 16 GB VRAM | Other Z-Image variants need separate license/hardware verification |
+| SD3.5 / SDXL | SD3.5 Medium is 2.5B and officially states 9.9 GB excluding text encoders; SD3.5 uses Stability Community License | SDXL Base/Refiner use OpenRAIL++; official cards do not state numeric VRAM |
+
+Official references: [FLUX.2 Klein](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B),
+[Qwen Image](https://huggingface.co/Qwen/Qwen-Image),
+[Z-Image](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo),
+[Stable Diffusion 3.5](https://stability.ai/news/introducing Stable Diffusion 3.5),
+and [SDXL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0).
 
 ## Tests
 
