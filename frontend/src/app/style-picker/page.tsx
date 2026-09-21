@@ -61,6 +61,7 @@ export default function StylePickerPage() {
   const [loadingRecipes, setLoadingRecipes] = useState(true);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [selecting, setSelecting] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const progressPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const variantPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -162,20 +163,27 @@ export default function StylePickerPage() {
     if (!selectedId) return;
     const key = `${style}/${index}`;
     setSelecting(key);
+    setActionError(null);
     try {
       const res = await fetch(
         `${API_URL}/style-variants/${selectedId}/${style}/${index}/select`,
         { method: "POST" },
       );
-      if (res.ok) {
-        setRecipes((prev) =>
-          prev.map((r) =>
-            r.id === selectedId
-              ? { ...r, image_path: `${selectedId}.png` }
-              : r,
-          ),
-        );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? "No se pudo usar esta variante");
       }
+      setRecipes((prev) =>
+        prev.map((r) =>
+          r.id === selectedId
+            ? { ...r, image_path: `${selectedId}.png` }
+            : r,
+        ),
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "No se pudo usar esta variante",
+      );
     } finally {
       setSelecting(null);
     }
@@ -293,6 +301,9 @@ export default function StylePickerPage() {
               <h2 className="text-xl font-semibold leading-tight">
                 {selectedRecipe?.title}
               </h2>
+              {actionError && (
+                <p className="text-sm text-red-400">{actionError}</p>
+              )}
 
               {/* Style tabs */}
               <div className="flex gap-1.5 flex-wrap">
