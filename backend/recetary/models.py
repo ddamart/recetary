@@ -96,6 +96,13 @@ class RecipeMatch(RecipeSummary):
 
     missing_ingredients: list[str] = Field(default_factory=list)
     matched_ingredients: list[str] = Field(default_factory=list)
+    match_provenance: list["IngredientMatch"] = Field(default_factory=list)
+
+
+class IngredientMatch(BaseModel):
+    query: str
+    ingredient: str
+    match_type: Literal["canonical", "alias", "family", "variant"]
 
 
 class Recipe(BaseModel):

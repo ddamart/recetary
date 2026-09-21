@@ -85,6 +85,11 @@ export interface RecipeSummary {
 export interface RecipeMatch extends RecipeSummary {
   matched_ingredients: string[];
   missing_ingredients: string[];
+  match_provenance: {
+    query: string;
+    ingredient: string;
+    match_type: "canonical" | "alias" | "family" | "variant";
+  }[];
 }
 
 // Phase-1 YouTube multi-recipe listing

@@ -111,7 +111,7 @@ def test_random_recipe_with_filter(temp_db):
     with db.get_conn() as conn:
         match = search.random_recipe(conn, ingredients=["pollo"])
     assert match is not None
-    assert "pollo" in match.matched_ingredients
+    assert any("pollo" in name for name in match.matched_ingredients)
 
 
 def test_random_recipe_returns_none_when_no_match(temp_db):
@@ -159,6 +159,43 @@ def test_resolve_ingredient_exact_and_fuzzy(temp_db):
         fuzzy = search.resolve_ingredient(conn, "Mozarela")  # typo + caps
     assert exact is not None and exact[1] == "cebolla" and exact[2] == 100
     assert fuzzy is not None and fuzzy[1] == "mozzarella"
+
+
+def test_phrase_ingredient_does_not_fuzzy_match_unrelated_oil(temp_db):
+    with db.get_conn() as conn:
+        coconut = _seed(
+            conn,
+            title="Leche de coco",
+            ingredients=[IngredientRef(name="leche de coco", category="beverage")],
+        )
+        _seed(
+            conn,
+            title="Sésamo",
+            ingredients=[IngredientRef(name="aceite de sésamo", category="fat")],
+        )
+        results = search.search_recipes(conn, ingredients=["leche de coco"])
+    assert [result.id for result in results] == [coconut]
+    assert results[0].match_provenance[0].match_type == "canonical"
+
+
+def test_alias_and_family_provenance(temp_db):
+    with db.get_conn() as conn:
+        noodles = _seed(
+            conn,
+            title="Noodles salteados",
+            ingredients=[IngredientRef(name="noodles", category="grain")],
+        )
+        chicken = _seed(
+            conn,
+            title="Pollo al horno",
+            ingredients=[IngredientRef(name="pechuga de pollo", category="protein")],
+        )
+        fideos = search.search_recipes(conn, ingredients=["fideos"])
+        pollo = search.search_recipes(conn, ingredients=["pollo"])
+    assert [result.id for result in fideos] == [noodles]
+    assert fideos[0].match_provenance[0].match_type == "alias"
+    assert [result.id for result in pollo] == [chicken]
+    assert pollo[0].match_provenance[0].match_type == "family"
 
 
 def test_search_title_infix_substring(temp_db):

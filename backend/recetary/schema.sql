@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS ingredients (
         'dairy','fat','seasoning','sauce','beverage',
         'nut','other'
     )),
-    aliases_json TEXT
+    aliases_json TEXT,
+    family       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS recipes (

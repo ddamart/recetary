@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from .. import db
 from ..models import RecipeMatch
-from ..search import random_recipe, search_recipes
+from ..search import count_search_results, random_recipe, search_recipes
 
 router = APIRouter(tags=["search"])
 
@@ -38,6 +38,18 @@ def search(
             sort=sort,
             limit=limit,
             offset=offset,
+        )
+
+
+@router.get("/search/count", response_model=int)
+def search_count(
+    q: Optional[str] = Query(None),
+    ingredients: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+) -> int:
+    with db.get_conn() as conn:
+        return count_search_results(
+            conn, q=q, ingredients=_split_ingredients(ingredients), tag=tag
         )
 
 

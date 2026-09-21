@@ -76,6 +76,13 @@ export const api = {
     return request<RecipeMatch[]>(`/search?${qs.toString()}`);
   },
   countRecipes: () => request<number>("/recipes/count"),
+  countSearchResults: (params: { q?: string; ingredients?: string[]; tag?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.ingredients?.length) qs.set("ingredients", params.ingredients.join(","));
+    if (params.tag) qs.set("tag", params.tag);
+    return request<number>(`/search/count?${qs.toString()}`);
+  },
   listTags: () => request<string[]>("/recipes/tags"),
   checkSource: (url: string) => {
     const qs = new URLSearchParams({ url });
