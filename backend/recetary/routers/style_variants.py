@@ -192,8 +192,11 @@ def get_recipe_variants(recipe_id: str) -> dict:
 def select_variant(recipe_id: str, style: str, index: int) -> dict:
     if style not in STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown style: {style}")
-    if not 0 <= index < VARIANTS_PER_STYLE:
-        raise HTTPException(status_code=400, detail=f"Index must be 0-{VARIANTS_PER_STYLE - 1}")
+    if not 0 <= index < SELECTED_VARIANTS_PER_STYLE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Index must be 0-{SELECTED_VARIANTS_PER_STYLE - 1}",
+        )
 
     src = _variant_path(recipe_id, style, index)
     if not src.exists():
