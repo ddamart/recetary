@@ -129,7 +129,8 @@ when `IMAGE_BACKEND=local` is set in `.env`. To run it manually:
 Defaults to `http://localhost:8500`. Override with `LOCAL_FLUX_URL` env var.
 Set `LOCAL_FLUX_MODEL` before starting the server to test another compatible
 Diffusers model; changing it requires a server restart. The production default
-remains Imagen.
+remains Imagen. FLUX.2 Klein is supported for local text-to-image generation;
+the existing img2img and LoRA endpoints remain FLUX.1-only.
 
 ### Image benchmark
 
