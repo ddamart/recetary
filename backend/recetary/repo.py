@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+import json
 from typing import Optional
 
 from .extraction.video import source_identity
@@ -74,9 +75,15 @@ def upsert_ingredient(conn: sqlite3.Connection, name: str, category: str) -> int
     ).fetchone()
     if row:
         return int(row["id"])
+    family = "pollo" if "pollo" in name.casefold().split() else (
+        "chicken" if "chicken" in name.casefold().split() else None
+    )
+    aliases = {"fideos": ["noodles"], "noodles": ["fideos"]}.get(
+        name.casefold()
+    )
     cursor = conn.execute(
-        "INSERT INTO ingredients(name, category) VALUES (?, ?)",
-        (name, category),
+        "INSERT INTO ingredients(name, category, aliases_json, family) VALUES (?, ?, ?, ?)",
+        (name, category, json.dumps(aliases) if aliases else None, family),
     )
     return int(cursor.lastrowid)
 

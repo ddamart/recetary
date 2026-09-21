@@ -83,3 +83,21 @@ def test_source_check_happens_without_extraction(temp_db):
     )
     assert response.status_code == 200
     assert response.json() == {"duplicate": False}
+
+
+def test_search_count_uses_search_filters(temp_db):
+    client = _client()
+    for title, tag in (("Una", "rápida"), ("Dos", "lenta")):
+        response = client.post(
+            "/recipes",
+            json={
+                "title": title,
+                "tags": [tag],
+                "ingredients": [{"name": "tomate", "category": "fruit"}],
+                "steps": [{"text": "paso"}],
+            },
+        )
+        assert response.status_code == 201
+    response = client.get("/search/count", params={"ingredients": "tomate", "tag": "rápida"})
+    assert response.status_code == 200
+    assert response.json() == 1

@@ -14,6 +14,7 @@ export default async function SearchPage(
   const ingredientsParam =
     typeof sp.ingredients === "string" ? sp.ingredients : undefined;
   const ingredients = ingredientsParam ? parseIngredients(ingredientsParam) : [];
+  const tag = typeof sp.tag === "string" ? sp.tag : undefined;
   const sort = typeof sp.sort === "string" ? sp.sort : undefined;
   const pageSize =
     typeof sp.size === "string" && PAGE_SIZE_OPTIONS.includes(Number(sp.size))
@@ -22,9 +23,10 @@ export default async function SearchPage(
   const page = typeof sp.page === "string" ? Math.max(1, Number(sp.page) || 1) : 1;
   const offset = (page - 1) * pageSize;
 
-  const [results, totalCount] = await Promise.all([
-    api.search({ q, ingredients, sort, limit: pageSize, offset }).catch(() => []),
-    api.countRecipes().catch(() => 0),
+  const [results, totalCount, availableTags] = await Promise.all([
+    api.search({ q, ingredients, tag, sort, limit: pageSize, offset }).catch(() => []),
+    api.countSearchResults({ q, ingredients, tag }).catch(() => 0),
+    api.listTags().catch(() => []),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -34,6 +36,7 @@ export default async function SearchPage(
   if (q) baseParams.set("q", q);
   if (ingredientsParam) baseParams.set("ingredients", ingredientsParam);
   if (sort) baseParams.set("sort", sort);
+  if (tag) baseParams.set("tag", tag);
   if (pageSize !== DEFAULT_PAGE_SIZE) baseParams.set("size", String(pageSize));
 
   function pageUrl(p: number) {
@@ -49,7 +52,7 @@ export default async function SearchPage(
     return `/search?${params.toString()}`;
   }
 
-  const noFilters = !q && ingredients.length === 0;
+  const noFilters = !q && ingredients.length === 0 && !tag;
 
   // Sort toggle URLs
   const sortParams = (s: string) => {
@@ -61,7 +64,12 @@ export default async function SearchPage(
 
   return (
     <div className="flex flex-col gap-6">
-      <SearchBox initialQuery={q ?? ""} initialIngredients={ingredients} />
+      <SearchBox
+        initialQuery={q ?? ""}
+        initialIngredients={ingredients}
+        initialTag={tag}
+        availableTags={availableTags}
+      />
 
       <div className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">
@@ -128,6 +136,15 @@ export default async function SearchPage(
                     {r.subtitle && (
                       <span className="text-xs text-muted truncate block">
                         {r.subtitle}
+                      </span>
+                    )}
+                    {r.match_provenance.length > 0 && (
+                      <span className="text-[11px] text-muted truncate block">
+                        {r.match_provenance.map((match) =>
+                          match.match_type === "canonical"
+                            ? match.ingredient
+                            : `${match.ingredient} (${match.match_type === "alias" ? "alias" : "familia"})`,
+                        ).join(", ")}
                       </span>
                     )}
                   </div>

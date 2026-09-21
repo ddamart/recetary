@@ -67,6 +67,7 @@ POST /recipes/extract        Multipart: source_type + file/text/url → RecipeDr
 POST /recipes/generate-image Generate a styled cover image for a recipe
 GET  /info                   Returns active extractor and image backends
 GET  /search                 ?q=&ingredients=&tag=&limit=&offset=
+GET  /search/count           ?q=&ingredients=&tag=
 GET  /ingredients            ?q=
 GET  /image-styles           Available image style presets
 GET  /static/images/{name}   Recipe cover images

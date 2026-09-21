@@ -13,7 +13,9 @@ Random recipe shares the ingredient/tag filter and adds `ORDER BY RANDOM()`.
 from __future__ import annotations
 
 import sqlite3
+import json
 import unicodedata
+from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from rapidfuzz import fuzz, process
@@ -23,7 +25,7 @@ from .extraction.video import (
     _extract_twitter_status_id,
     _extract_youtube_id,
 )
-from .models import RecipeMatch
+from .models import IngredientMatch, RecipeMatch
 
 
 # Minimum normalized score (0–100) for accepting a fuzzy ingredient match.
@@ -41,6 +43,30 @@ def _all_ingredient_names(conn: sqlite3.Connection) -> list[tuple[int, str]]:
         (int(r["id"]), r["name"])
         for r in conn.execute("SELECT id, name FROM ingredients")
     ]
+
+
+@dataclass(frozen=True)
+class _IngredientCandidate:
+    id: int
+    name: str
+    aliases: tuple[str, ...]
+    family: Optional[str]
+
+
+def _ingredient_candidates(conn: sqlite3.Connection) -> list[_IngredientCandidate]:
+    rows = conn.execute(
+        "SELECT id, name, aliases_json, family FROM ingredients"
+    ).fetchall()
+    candidates = []
+    for row in rows:
+        try:
+            aliases = tuple(str(v) for v in (json.loads(row["aliases_json"]) or []))
+        except (TypeError, ValueError):
+            aliases = ()
+        candidates.append(_IngredientCandidate(
+            int(row["id"]), row["name"], aliases, row["family"],
+        ))
+    return candidates
 
 
 def resolve_ingredient(
@@ -75,7 +101,7 @@ def resolve_ingredient(
 
 def _resolve_token_to_group(
     conn: sqlite3.Connection, query: str
-) -> list[tuple[int, str]]:
+) -> list[tuple[int, str, str]]:
     """Resolve one user token to *all* canonical ingredients that match it.
 
     A canonical name matches when:
@@ -86,18 +112,39 @@ def _resolve_token_to_group(
 
     This is the semantic users expect: "I have pollo" matches any chicken cut.
     """
-    query_lower = _strip(query)
+    query_lower = _strip_diacritics(_strip(query))
     if not query_lower:
         return []
-    pool = _all_ingredient_names(conn)
-    matched: list[tuple[int, str]] = []
-    for ing_id, name in pool:
-        name_lower = name.lower()
-        if query_lower in name_lower or name_lower in query_lower:
-            matched.append((ing_id, name))
-            continue
-        if fuzz.WRatio(query_lower, name_lower) >= INGREDIENT_FUZZY_THRESHOLD:
-            matched.append((ing_id, name))
+    matched: list[tuple[int, str, str]] = []
+    candidates = _ingredient_candidates(conn)
+    for candidate in candidates:
+        name_lower = _strip_diacritics(candidate.name.casefold())
+        aliases = {_strip_diacritics(alias.casefold()) for alias in candidate.aliases}
+        if query_lower == name_lower:
+            matched.append((candidate.id, candidate.name, "canonical"))
+        elif query_lower in aliases:
+            matched.append((candidate.id, candidate.name, "alias"))
+        elif candidate.family and query_lower == _strip_diacritics(candidate.family.casefold()):
+            matched.append((candidate.id, candidate.name, "family"))
+
+    # A one-word query may match a whole word in a canonical name (pollo -> cuts).
+    # Phrase queries remain exact/alias-only, avoiding leche de coco false positives.
+    if not matched and len(query_lower.split()) == 1:
+        for candidate in candidates:
+            words = _strip_diacritics(candidate.name.casefold()).split()
+            if query_lower in words:
+                matched.append((candidate.id, candidate.name, "variant"))
+    if not matched and len(query_lower.split()) == 1:
+        names = {candidate.id: candidate.name for candidate in candidates}
+        match = process.extractOne(
+            query_lower,
+            names,
+            scorer=fuzz.WRatio,
+            score_cutoff=INGREDIENT_FUZZY_THRESHOLD,
+        )
+        if match:
+            name, _score, ing_id = match
+            matched.append((int(ing_id), str(name), "canonical"))
     return matched
 
 
@@ -246,6 +293,7 @@ def search_recipes(
 
     groups: list[set[int]] = []
     matched_names: list[str] = []
+    provenance: list[IngredientMatch] = []
     if ingredients:
         for token in ingredients:
             group = _resolve_token_to_group(conn, token)
@@ -253,6 +301,10 @@ def search_recipes(
                 return []
             groups.append({pair[0] for pair in group})
             matched_names.append(token.strip().lower())
+            provenance.extend(
+                IngredientMatch(query=token.strip(), ingredient=name, match_type=kind)
+                for _id, name, kind in group
+            )
 
     candidate_ids: Optional[set[str]] = None
     if groups:
@@ -303,7 +355,38 @@ def search_recipes(
         ).fetchall()
         page_ids = [r["id"] for r in rows]
 
-    return [_hydrate_match(conn, rid, matched_names) for rid in page_ids]
+    return [_hydrate_match(conn, rid, matched_names, provenance) for rid in page_ids]
+
+
+def count_search_results(
+    conn: sqlite3.Connection,
+    *,
+    q: Optional[str] = None,
+    ingredients: Optional[list[str]] = None,
+    tag: Optional[str] = None,
+) -> int:
+    """Return the count for the same filters as ``search_recipes``."""
+    ingredients = [i for i in (ingredients or []) if i and i.strip()]
+    groups = []
+    for token in ingredients:
+        group = _resolve_token_to_group(conn, token)
+        if not group:
+            return 0
+        groups.append({item[0] for item in group})
+    candidate_ids: Optional[set[str]] = None
+    if groups:
+        candidate_ids = set(_filter_recipe_ids_by_groups(conn, groups))
+    if tag:
+        tag_ids = {r["recipe_id"] for r in conn.execute(
+            "SELECT recipe_id FROM tags WHERE tag = ?", (tag,)
+        )}
+        candidate_ids = tag_ids if candidate_ids is None else candidate_ids & tag_ids
+    if q:
+        title_ids = set(_title_match_ids(conn, q))
+        candidate_ids = title_ids if candidate_ids is None else candidate_ids & title_ids
+    if candidate_ids is not None:
+        return len(candidate_ids)
+    return int(conn.execute("SELECT COUNT(*) FROM recipes").fetchone()[0])
 
 
 def random_recipe(
@@ -325,7 +408,10 @@ def random_recipe(
 
 
 def _hydrate_match(
-    conn: sqlite3.Connection, recipe_id: str, matched_names: list[str]
+    conn: sqlite3.Connection,
+    recipe_id: str,
+    matched_names: list[str],
+    provenance: list[IngredientMatch],
 ) -> RecipeMatch:
     row = conn.execute(
         """
@@ -352,10 +438,9 @@ def _hydrate_match(
     all_names = [r["name"] for r in ing_rows]
     # An ingredient counts as "matched" if it contains any of the user's tokens
     # (substring), so "pechuga de pollo" is matched by the token "pollo".
-    tokens_lower = [t.lower() for t in matched_names]
+    matched_canonical = {item.ingredient.casefold() for item in provenance}
     def _is_matched(name: str) -> bool:
-        nl = name.lower()
-        return any(t in nl for t in tokens_lower)
+        return name.casefold() in matched_canonical
     missing = [n for n in all_names if not _is_matched(n)]
     return RecipeMatch(
         id=row["id"],
@@ -367,6 +452,11 @@ def _hydrate_match(
         ingredient_count=int(row["ic"]),
         tags=tags,
         created_at=row["created_at"],
-        matched_ingredients=matched_names,
+        matched_ingredients=sorted(matched_canonical),
         missing_ingredients=missing,
+        match_provenance=[
+            item for item in provenance if item.ingredient.casefold() in {
+                name.casefold() for name in all_names
+            }
+        ],
     )

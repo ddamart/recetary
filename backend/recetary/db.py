@@ -59,8 +59,34 @@ def init_db(path: Path | None = None) -> Path:
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     with get_conn(target) as conn:
         conn.executescript(schema)
+        _migrate_ingredient_metadata(conn)
         _sync_recipe_sources(conn)
     return target
+
+
+def _migrate_ingredient_metadata(conn: sqlite3.Connection) -> None:
+    """Add metadata to databases created before ingredient matching metadata."""
+    columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(ingredients)").fetchall()
+    }
+    if "aliases_json" not in columns:
+        conn.execute("ALTER TABLE ingredients ADD COLUMN aliases_json TEXT")
+    if "family" not in columns:
+        conn.execute("ALTER TABLE ingredients ADD COLUMN family TEXT")
+    conn.execute(
+        "UPDATE ingredients SET family = CASE "
+        "WHEN lower(name) LIKE '%pollo%' THEN 'pollo' ELSE 'chicken' END "
+        "WHERE family IS NULL AND (lower(name) LIKE '%pollo%' OR lower(name) LIKE '%chicken%')"
+    )
+    conn.execute(
+        "UPDATE ingredients SET aliases_json = '[\"noodles\"]' "
+        "WHERE aliases_json IS NULL AND lower(name) = 'fideos'"
+    )
+    conn.execute(
+        "UPDATE ingredients SET aliases_json = '[\"fideos\"]' "
+        "WHERE aliases_json IS NULL AND lower(name) = 'noodles'"
+    )
 
 
 def _sync_recipe_sources(conn: sqlite3.Connection) -> None:
