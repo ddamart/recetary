@@ -1,10 +1,9 @@
-"""Standalone FLUX Schnell image generation server.
+"""Standalone local FLUX image generation server.
 
 Run with:
     uvicorn flux_server:app --port 8500
 
-The model loads on startup (~30s first time, ~10s after caching). Once ready,
-each image takes ~5-15s on an RTX 4080 SUPER.
+The model loads on startup. Once ready, each image is generated locally.
 
 Requirements: install from requirements-flux.txt
     pip install -r requirements-flux.txt
@@ -21,6 +20,7 @@ import torch
 from diffusers import (
     BitsAndBytesConfig,
     FluxImg2ImgPipeline,
+    Flux2KleinPipeline,
     FluxPipeline,
     FluxTransformer2DModel,
 )
@@ -39,6 +39,10 @@ pipe: FluxPipeline | None = None
 img2img_pipe: FluxImg2ImgPipeline | None = None
 _generate_lock = threading.Lock()
 
+
+def _is_flux2_klein() -> bool:
+    return "flux.2-klein" in MODEL_ID.lower()
+
 # Tracks which LoRA repo is currently loaded (None = no LoRA loaded).
 # LoRA is loaded lazily on the first /generate-lora request for a given repo
 # and kept resident so subsequent calls skip the load step.
@@ -49,6 +53,19 @@ _LORA_ADAPTER_NAME = "lora_0"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pipe, img2img_pipe
+    if _is_flux2_klein():
+        logger.info("Loading FLUX.2 Klein...")
+        pipe = Flux2KleinPipeline.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.bfloat16,
+        )
+        pipe.enable_model_cpu_offload()
+        img2img_pipe = None
+        logger.info("FLUX.2 Klein ready (txt2img only).")
+        yield
+        pipe = None
+        return
+
     logger.info("Loading FLUX Schnell (NF4 quantised)...")
 
     # Load the transformer (largest component) in NF4 to fit in 16 GB VRAM
@@ -136,16 +153,20 @@ def generate(req: GenerateRequest):
 
     try:
         logger.info("Generating image (txt2img): %s", req.prompt[:200])
-        image = pipe(
-            prompt=req.prompt,
-            width=req.width,
-            height=req.height,
-            num_inference_steps=req.num_inference_steps,
-            guidance_scale=0.0,
-            generator=torch.Generator(device="cuda").manual_seed(req.seed)
-            if req.seed is not None
-            else None,
-        ).images[0]
+        kwargs = {
+            "prompt": req.prompt,
+            "width": req.width,
+            "height": req.height,
+            "num_inference_steps": req.num_inference_steps,
+            "generator": (
+                torch.Generator(device="cuda").manual_seed(req.seed)
+                if req.seed is not None
+                else None
+            ),
+        }
+        if not _is_flux2_klein():
+            kwargs["guidance_scale"] = 0.0
+        image = pipe(**kwargs).images[0]
 
         buf = io.BytesIO()
         image.save(buf, format="PNG")
@@ -164,6 +185,8 @@ def img2img(
     num_inference_steps: int = Form(4),
     strength: float = Form(0.65),
 ):
+    if _is_flux2_klein():
+        raise HTTPException(400, "FLUX.2 Klein currently supports text-to-image only")
     if img2img_pipe is None:
         raise HTTPException(503, "Model not loaded yet")
 
@@ -206,6 +229,8 @@ class GenerateLoraRequest(BaseModel):
 
 @app.post("/generate-lora")
 def generate_lora(req: GenerateLoraRequest):
+    if _is_flux2_klein():
+        raise HTTPException(400, "FLUX.2 Klein does not support the current FLUX LoRA endpoint")
     if pipe is None:
         raise HTTPException(503, "Model not loaded yet")
 
