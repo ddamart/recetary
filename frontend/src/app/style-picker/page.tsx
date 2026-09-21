@@ -143,7 +143,10 @@ export default function StylePickerPage() {
   }, [progress?.running, selectedId, loadVariants]);
 
   const handleStart = async () => {
-    await fetch(`${API_URL}/style-variants/start`, { method: "POST" });
+    if (!selectedId || progress?.running) return;
+    await fetch(`${API_URL}/style-variants/start/${selectedId}`, {
+      method: "POST",
+    });
     setTimeout(fetchProgress, 600);
   };
 
@@ -221,9 +224,10 @@ export default function StylePickerPage() {
             ) : (
               <button
                 onClick={handleStart}
-                className="px-3 py-1.5 text-sm rounded-md bg-accent text-white hover:opacity-90 transition"
+                disabled={!selectedId}
+                className="px-3 py-1.5 text-sm rounded-md bg-accent text-white hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Iniciar generación
+                {selectedId ? "Generar receta seleccionada" : "Selecciona una receta"}
               </button>
             )}
           </div>

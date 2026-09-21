@@ -99,26 +99,12 @@ def _run_generation(recipes: list, styles: list[str]) -> None:
     logger.info("Style variant generation complete: %d/%d done", _state["done"], total)
 
 
-@router.get("/progress")
-def get_progress() -> dict:
-    with _lock:
-        return dict(_state)
-
-
-@router.post("/start")
-def start_generation() -> dict:
+def _start_generation(recipes: list) -> dict:
+    styles = ["ghibli", "ghibli-3", "watercolor", "minimal", "ghibli-new"]
     with _lock:
         if _state["running"]:
             return {"status": "already_running"}
 
-    with db.get_conn() as conn:
-        rows = conn.execute(
-            "SELECT id, title, subtitle, description FROM recipes ORDER BY title"
-        ).fetchall()
-
-    recipes = [(r["id"], r["title"], r["subtitle"], r["description"]) for r in rows]
-    styles = ["ghibli","ghibli-3", "watercolor", "minimal", "ghibli-new"]
- 
     thread = threading.Thread(
         target=_run_generation,
         args=(recipes, styles),
@@ -132,6 +118,37 @@ def start_generation() -> dict:
         "styles": len(styles),
         "total": len(recipes) * len(styles) * VARIANTS_PER_STYLE,
     }
+
+
+@router.get("/progress")
+def get_progress() -> dict:
+    with _lock:
+        return dict(_state)
+
+
+@router.post("/start")
+def start_generation() -> dict:
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, title, subtitle, description FROM recipes ORDER BY title"
+        ).fetchall()
+
+    recipes = [(r["id"], r["title"], r["subtitle"], r["description"]) for r in rows]
+    return _start_generation(recipes)
+
+
+@router.post("/start/{recipe_id}")
+def start_recipe_generation(recipe_id: str) -> dict:
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, title, subtitle, description FROM recipes WHERE id = ?",
+            (recipe_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="recipe not found")
+
+    recipe = [(row["id"], row["title"], row["subtitle"], row["description"])]
+    return _start_generation(recipe)
 
 
 @router.post("/stop")
