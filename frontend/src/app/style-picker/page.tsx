@@ -144,9 +144,12 @@ export default function StylePickerPage() {
 
   const handleStart = async () => {
     if (!selectedId || progress?.running) return;
-    await fetch(`${API_URL}/style-variants/start/${selectedId}`, {
+    await fetch(
+      `${API_URL}/style-variants/start/${selectedId}?style=${encodeURIComponent(activeStyle)}`,
+      {
       method: "POST",
-    });
+      },
+    );
     setTimeout(fetchProgress, 600);
   };
 
