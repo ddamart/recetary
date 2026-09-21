@@ -190,12 +190,18 @@ def test_alias_and_family_provenance(temp_db):
             title="Pollo al horno",
             ingredients=[IngredientRef(name="pechuga de pollo", category="protein")],
         )
+        muslos = _seed(
+            conn,
+            title="Muslos al horno",
+            ingredients=[IngredientRef(name="muslo de pollo", category="protein")],
+        )
         fideos = search.search_recipes(conn, ingredients=["fideos"])
         pollo = search.search_recipes(conn, ingredients=["pollo"])
     assert [result.id for result in fideos] == [noodles]
     assert fideos[0].match_provenance[0].match_type == "alias"
-    assert [result.id for result in pollo] == [chicken]
+    assert {result.id for result in pollo} == {chicken, muslos}
     assert pollo[0].match_provenance[0].match_type == "family"
+    assert pollo[0].matched_ingredients == ["pechuga de pollo"]
 
 
 def test_search_title_infix_substring(temp_db):

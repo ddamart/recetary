@@ -292,7 +292,6 @@ def search_recipes(
     ingredients = [i for i in (ingredients or []) if i and i.strip()]
 
     groups: list[set[int]] = []
-    matched_names: list[str] = []
     provenance: list[IngredientMatch] = []
     if ingredients:
         for token in ingredients:
@@ -300,7 +299,6 @@ def search_recipes(
             if not group:
                 return []
             groups.append({pair[0] for pair in group})
-            matched_names.append(token.strip().lower())
             provenance.extend(
                 IngredientMatch(query=token.strip(), ingredient=name, match_type=kind)
                 for _id, name, kind in group
@@ -355,7 +353,7 @@ def search_recipes(
         ).fetchall()
         page_ids = [r["id"] for r in rows]
 
-    return [_hydrate_match(conn, rid, matched_names, provenance) for rid in page_ids]
+    return [_hydrate_match(conn, rid, provenance) for rid in page_ids]
 
 
 def count_search_results(
@@ -410,7 +408,6 @@ def random_recipe(
 def _hydrate_match(
     conn: sqlite3.Connection,
     recipe_id: str,
-    matched_names: list[str],
     provenance: list[IngredientMatch],
 ) -> RecipeMatch:
     row = conn.execute(
@@ -436,9 +433,11 @@ def _hydrate_match(
         (recipe_id,),
     ).fetchall()
     all_names = [r["name"] for r in ing_rows]
-    # An ingredient counts as "matched" if it contains any of the user's tokens
-    # (substring), so "pechuga de pollo" is matched by the token "pollo".
-    matched_canonical = {item.ingredient.casefold() for item in provenance}
+    recipe_names = {name.casefold() for name in all_names}
+    recipe_provenance = [
+        item for item in provenance if item.ingredient.casefold() in recipe_names
+    ]
+    matched_canonical = {item.ingredient.casefold() for item in recipe_provenance}
     def _is_matched(name: str) -> bool:
         return name.casefold() in matched_canonical
     missing = [n for n in all_names if not _is_matched(n)]
@@ -454,9 +453,5 @@ def _hydrate_match(
         created_at=row["created_at"],
         matched_ingredients=sorted(matched_canonical),
         missing_ingredients=missing,
-        match_provenance=[
-            item for item in provenance if item.ingredient.casefold() in {
-                name.casefold() for name in all_names
-            }
-        ],
+        match_provenance=recipe_provenance,
     )
