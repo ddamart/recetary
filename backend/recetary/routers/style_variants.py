@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/style-variants", tags=["style-variants"])
 
 VARIANTS_PER_STYLE = 5
+SELECTED_VARIANTS_PER_STYLE = 10
 
 _state: dict = {
     "running": False,
@@ -34,19 +35,23 @@ def _variant_path(recipe_id: str, style: str, index: int) -> Path:
     return _variants_dir() / recipe_id / style / f"{index}.png"
 
 
-def _count_existing(recipes: list, styles: list[str]) -> int:
+def _count_existing(recipes: list, styles: list[str], variants_per_style: int) -> int:
     count = 0
     for row in recipes:
         for style in styles:
-            for idx in range(VARIANTS_PER_STYLE):
+            for idx in range(variants_per_style):
                 if _variant_path(row[0], style, idx).exists():
                     count += 1
     return count
 
 
-def _run_generation(recipes: list, styles: list[str]) -> None:
-    done = _count_existing(recipes, styles)
-    total = len(recipes) * len(styles) * VARIANTS_PER_STYLE
+def _run_generation(
+    recipes: list,
+    styles: list[str],
+    variants_per_style: int = VARIANTS_PER_STYLE,
+) -> None:
+    done = _count_existing(recipes, styles, variants_per_style)
+    total = len(recipes) * len(styles) * variants_per_style
 
     with _lock:
         _state["running"] = True
@@ -57,7 +62,7 @@ def _run_generation(recipes: list, styles: list[str]) -> None:
 
     for recipe_id, title, subtitle, description in recipes:
         for style in styles:
-            for idx in range(VARIANTS_PER_STYLE):
+            for idx in range(variants_per_style):
                 with _lock:
                     if _state["stop_requested"]:
                         _state["running"] = False
@@ -99,15 +104,18 @@ def _run_generation(recipes: list, styles: list[str]) -> None:
     logger.info("Style variant generation complete: %d/%d done", _state["done"], total)
 
 
-def _start_generation(recipes: list) -> dict:
-    styles = ["ghibli", "ghibli-3", "watercolor", "minimal", "ghibli-new"]
+def _start_generation(
+    recipes: list,
+    styles: list[str],
+    variants_per_style: int,
+) -> dict:
     with _lock:
         if _state["running"]:
             return {"status": "already_running"}
 
     thread = threading.Thread(
         target=_run_generation,
-        args=(recipes, styles),
+        args=(recipes, styles, variants_per_style),
         daemon=True,
         name="style-variant-generation",
     )
@@ -116,7 +124,7 @@ def _start_generation(recipes: list) -> dict:
         "status": "started",
         "recipes": len(recipes),
         "styles": len(styles),
-        "total": len(recipes) * len(styles) * VARIANTS_PER_STYLE,
+        "total": len(recipes) * len(styles) * variants_per_style,
     }
 
 
@@ -134,11 +142,15 @@ def start_generation() -> dict:
         ).fetchall()
 
     recipes = [(r["id"], r["title"], r["subtitle"], r["description"]) for r in rows]
-    return _start_generation(recipes)
+    styles = ["ghibli", "ghibli-3", "watercolor", "minimal", "ghibli-new"]
+    return _start_generation(recipes, styles, VARIANTS_PER_STYLE)
 
 
 @router.post("/start/{recipe_id}")
-def start_recipe_generation(recipe_id: str) -> dict:
+def start_recipe_generation(recipe_id: str, style: str) -> dict:
+    if style not in STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown style: {style}")
+
     with db.get_conn() as conn:
         row = conn.execute(
             "SELECT id, title, subtitle, description FROM recipes WHERE id = ?",
@@ -148,7 +160,7 @@ def start_recipe_generation(recipe_id: str) -> dict:
         raise HTTPException(status_code=404, detail="recipe not found")
 
     recipe = [(row["id"], row["title"], row["subtitle"], row["description"])]
-    return _start_generation(recipe)
+    return _start_generation(recipe, [style], SELECTED_VARIANTS_PER_STYLE)
 
 
 @router.post("/stop")
@@ -168,7 +180,7 @@ def get_recipe_variants(recipe_id: str) -> dict:
     variants: dict[str, list[str | None]] = {}
     for style in STYLES:
         slots: list[str | None] = []
-        for idx in range(VARIANTS_PER_STYLE):
+        for idx in range(SELECTED_VARIANTS_PER_STYLE):
             path = _variant_path(recipe_id, style, idx)
             slots.append(f"{recipe_id}/{style}/{idx}.png" if path.exists() else None)
         variants[style] = slots
