@@ -20,6 +20,7 @@ out/
 # Data
 data/recetary.db
 data/recetary.db-*
+data/*.bak
 data/images/
 data/style_variants/
 data/image-benchmark-*/
