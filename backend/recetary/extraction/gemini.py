@@ -106,8 +106,17 @@ class GeminiExtractor:
 
     def _parse_response(self, response) -> RecipeDraft:
         if not response.text:
+            # A blocked prompt comes back with candidates=None and the reason in prompt_feedback.
+            feedback = response.prompt_feedback
+            if feedback and feedback.block_reason:
+                raise ExtractionError(
+                    f"Gemini blocked the request (block_reason={feedback.block_reason!r})"
+                )
+            finish_reason = (
+                response.candidates[0].finish_reason if response.candidates else None
+            )
             raise ExtractionError(
-                f"Gemini returned empty response (finish_reason={response.candidates[0].finish_reason!r})"
+                f"Gemini returned empty response (finish_reason={finish_reason!r})"
             )
         try:
             data = json.loads(response.text)
@@ -177,12 +186,16 @@ class GeminiExtractor:
             model=self.model,
             contents=[types.Content(role="user", parts=parts)],
             config=types.GenerateContentConfig(
-                max_output_tokens=2048,
+                # 2.5-flash thinking tokens count against this cap; 2048 truncated the JSON.
+                max_output_tokens=8192,
                 response_mime_type="application/json",
                 response_schema=schema,
             ),
         )
 
+        finish_reason = response.candidates[0].finish_reason if response.candidates else None
+        if finish_reason == types.FinishReason.MAX_TOKENS:
+            raise ExtractionError("Gemini hit max_output_tokens for recipe listing")
         if not response.text:
             raise ExtractionError("Gemini returned empty response for recipe listing")
         try:
