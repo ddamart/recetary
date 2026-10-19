@@ -18,12 +18,7 @@ out/
 *.tsbuildinfo
 
 # Data
-data/recetary.db
-data/recetary.db-*
-data/*.bak
-data/images/
-data/style_variants/
-data/image-benchmark-*/
+data/
 
 # Seed corpus (kept locally, too heavy for git; switch to git-lfs if needed)
 raw_pdfs/
