@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
@@ -15,6 +16,7 @@ from ..extraction import video as video_io
 from ..extraction.video import VideoExtractionError
 
 router = APIRouter(prefix="/recipes", tags=["extract"])
+logger = logging.getLogger(__name__)
 
 _extractor = None
 
@@ -146,15 +148,26 @@ async def extract_recipe(
 
             # Platforms with downloaded video bytes: send to Gemini
             if content.video_bytes:
-                draft = await asyncio.to_thread(
-                    extractor.extract_video_bytes,
-                    video_bytes=content.video_bytes,
-                    video_mime_type=content.video_mime_type,
-                    supplementary_text=content.text,
-                    canonical_ingredients=canonical,
-                )
-                draft.source_ref = content.source_url
-                return draft
+                try:
+                    draft = await asyncio.to_thread(
+                        extractor.extract_video_bytes,
+                        video_bytes=content.video_bytes,
+                        video_mime_type=content.video_mime_type,
+                        supplementary_text=content.text,
+                        canonical_ingredients=canonical,
+                    )
+                    draft.source_ref = content.source_url
+                    return draft
+                except ExtractionError:
+                    # Gemini sometimes blocks the video itself (e.g. audio
+                    # tripping a filter); the caption alone may still hold the recipe.
+                    if not content.text.strip():
+                        raise
+                    logger.warning(
+                        "Video extraction failed for %s; falling back to caption",
+                        content.source_url,
+                        exc_info=True,
+                    )
 
             # Gemini can process YouTube videos natively for richer extraction
             if hasattr(extractor, "extract_video_url") and content.platform == "youtube":

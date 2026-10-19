@@ -21,6 +21,8 @@ out/
 data/recetary.db
 data/recetary.db-*
 data/images/
+data/style_variants/
+data/image-benchmark-*/
 
 # Seed corpus (kept locally, too heavy for git; switch to git-lfs if needed)
 raw_pdfs/
